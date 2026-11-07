@@ -7,6 +7,7 @@
 ## Dependencies: Questie, QuestieDB
 ## SavedVariables: UltimateDB
 ## SavedVariablesPerCharacter: UltimateCharDB
+## AddonCompartmentFunc: Ultimate_OnCompartmentClick
 ## IconTexture: Interface\Icons\INV_Misc_Spyglass_03
 
 Locale\enUS.lua
@@ -35,3 +36,6 @@ Services\Alerts.lua
 Modules\QuestTargeting.lua
 Modules\RareScanner.lua
 Modules\QuestItems.lua
+Settings\Builder.lua
+Settings\Lists.lua
+Settings\Panel.lua

@@ -41,15 +41,3 @@ function Sounds.Play(key, channel)
   ns.SafeCall(PlaySound, kit, channel or "Master")
   return true
 end
-
-L.SOUND_NONE = "None"
-L.SOUND_MAP_PING = "Map Ping"
-L.SOUND_RAID_WARNING = "Raid Warning"
-L.SOUND_READY_CHECK = "Ready Check"
-L.SOUND_QUEST = "Quest Log"
-L.SOUND_ALARM = "Alarm Clock"
-L.SOUND_TOAST = "Friend Toast"
-L.SOUND_LEVEL_UP = "Level Up"
-L.SOUND_PVP_QUEUE = "PvP Queue Pop"
-L.SOUND_AUCTION = "Auction House"
-L.SOUND_WHISPER = "Whisper"

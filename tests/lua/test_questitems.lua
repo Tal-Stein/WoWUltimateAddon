@@ -132,3 +132,113 @@ describe("QuestItems review fixes", function()
     ns.Modules:SetEnabled("questItems", true)
   end)
 end)
+
+describe("QuestItems right-click menu", function()
+  -- Minimal MenuUtil stand-in: records what the generator builds.
+  local shown
+  local function newRoot()
+    local root = { entries = {} }
+    local function add(kind, text, a, b, c)
+      local e = { kind = kind, text = text, a = a, b = b, c = c }
+      root.entries[#root.entries + 1] = e
+      return e
+    end
+    function root:CreateTitle(t) return add("title", t) end
+    function root:CreateButton(t, fn) return add("button", t, fn) end
+    function root:CreateCheckbox(t, isSel, set) return add("checkbox", t, isSel, set) end
+    function root:CreateRadio(t, isSel, set, v) return add("radio", t, isSel, set, v) end
+    function root:CreateDivider() return add("divider") end
+    return root
+  end
+  MenuUtil = { CreateContextMenu = function(owner, gen)
+    local root = newRoot()
+    gen(owner, root)
+    shown = { owner = owner, root = root }
+  end }
+  local function entry(text)
+    for _, e in ipairs(shown.root.entries) do if e.text == text then return e end end
+  end
+  local L = ns.L
+
+  it("right-click never uses the item", function()
+    local b = QIt.buttons[1]
+    assertEq(b:GetAttribute("type2"), "macro")
+    assertEq(b:GetAttribute("macrotext2"), "")
+  end)
+  it("right-click on a button opens the menu once per click", function()
+    shown = nil
+    local b = QIt.buttons[1]
+    b.itemID = 600
+    b:GetScript("OnClick")(b, "RightButton", true)
+    assertNil(shown, "nothing on the down stroke")
+    b:GetScript("OnClick")(b, "RightButton", false)
+    assertTrue(shown ~= nil and shown.owner == b)
+    assertEq(shown.root.entries[1].text, L.MODULE_QUEST_ITEMS)
+  end)
+  it("left-click does not open the menu", function()
+    shown = nil
+    local b = QIt.buttons[1]
+    b:GetScript("OnClick")(b, "LeftButton", false)
+    assertNil(shown)
+  end)
+  it("offers pin, lock, show mode and settings", function()
+    local b = QIt.buttons[1]
+    b.itemID = 600
+    ns.db.questItems.pinned[600] = nil
+    QIt.ShowMenu(b)
+    entry(L.ITEM_MENU_PIN).b()
+    assertTrue(ns.db.questItems.pinned[600], "pin toggles")
+    ns.db.questItems.pinned[600] = nil
+    local lock = entry(L.LOCK_BAR)
+    assertFalse(lock.a())
+    lock.b()
+    assertTrue(ns.db.questItems.locked)
+    ns.db.questItems.locked = false
+    local always = entry(L.ITEM_MODE_ALWAYS)
+    always.b(always.c)
+    assertEq(ns.db.questItems.mode, "always")
+    ns.db.questItems.mode = "relevant"
+    assertTrue(entry(L.ITEM_MODE_RELEVANT).a(entry(L.ITEM_MODE_RELEVANT).c))
+    local opened = false
+    ns.OpenSettings = function() opened = true end
+    entry(L.OPEN_SETTINGS).a()
+    assertTrue(opened)
+  end)
+  it("the title bar opens the menu too, without the pin entry", function()
+    shown = nil
+    QIt.handle:GetScript("OnMouseUp")(QIt.handle, "RightButton")
+    assertTrue(shown ~= nil)
+    assertNil(entry(L.ITEM_MENU_PIN))
+  end)
+  it("Hide turns the feature off, also in combat, and says how to get it back", function()
+    QIt.ShowMenu(QIt.buttons[1])
+    __inCombat = true
+    entry(L.ITEM_MENU_HIDE).a()
+    assertFalse(ns.Modules:IsEnabled("questItems"))
+    __inCombat = false
+    ns.Combat:Flush()
+    assertFalse(QIt.frame:IsShown())
+    ns.Modules:SetEnabled("questItems", true)
+  end)
+end)
+
+describe("QuestItems button art", function()
+  it("keeps the template's own button size and scales the bar instead", function()
+    setup()
+    ns.db.questItems.mode = "always"
+    local resized = 0
+    for _, b in ipairs(QIt.buttons) do
+      b.GetWidth = function() return 45 end
+      b.SetSize = function() resized = resized + 1 end
+    end
+    QIt.native = nil
+    QIt.Update()
+    assertEq(resized, 0, "buttons are never resized, so the template art stays centred")
+    assertTrue(math.abs(QIt.barScale - 36 / 45) < 1e-6, "bar scaled to look 36px")
+    ns.db.questItems.scale = 2
+    QIt.Update()
+    assertTrue(math.abs(QIt.barScale - 2 * 36 / 45) < 1e-6, "user scale still applies")
+    ns.db.questItems.scale = 1
+    ns.db.questItems.mode = "relevant"
+  end)
+end)

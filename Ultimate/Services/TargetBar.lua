@@ -48,8 +48,8 @@ end
 local function onLeave() if GameTooltip then GameTooltip:Hide() end end
 
 for i = 1, MAX_BUTTONS do
+  -- Kept at the template's own size (see UI.NativeButtonSize); the bar is scaled instead.
   local b = CreateFrame("Button", "UltimateTargetBarButton" .. i, frame, "SecureActionButtonTemplate, ActionButtonTemplate")
-  b:SetSize(SIZE, SIZE)
   b:RegisterForClicks("AnyUp", "AnyDown")
   b:SetAttribute("type", "macro")
   b:SetAttribute("useOnKeyDown", false)
@@ -111,6 +111,9 @@ function Bar:Layout(force)
     return
   end
   self.signature = signature
+  self.native = self.native or UI.NativeButtonSize(self.buttons[1], SIZE)
+  local size = self.native
+  local gap = GAP * size / SIZE
   ns.Combat:Run("targetbar.layout", function()
     local horizontal = o.orientation ~= "VERTICAL"
     for i, b in ipairs(Bar.buttons) do
@@ -118,10 +121,11 @@ function Bar:Layout(force)
       if name then
         b:SetAttribute("macrotext", "/cleartarget\n/targetexact " .. name)
         b:ClearAllPoints()
+        b.label:SetWidth(size + gap * 2)
         if horizontal then
-          b:SetPoint("LEFT", frame, "LEFT", (i - 1) * (SIZE + GAP * 2), 0)
+          b:SetPoint("LEFT", frame, "LEFT", (i - 1) * (size + gap * 2), 0)
         else
-          b:SetPoint("TOP", frame, "TOP", 0, -(i - 1) * (SIZE + GAP * 3))
+          b:SetPoint("TOP", frame, "TOP", 0, -(i - 1) * (size + gap * 3))
         end
         b.candidateName = names[i]
         b:Show()
@@ -130,12 +134,13 @@ function Bar:Layout(force)
         b:Hide()
       end
     end
-    frame:SetScale(o.scale or 1)
+    Bar.barScale = (o.scale or 1) * SIZE / size
+    frame:SetScale(Bar.barScale)
     local n = math.max(#names, 1)
     if horizontal then
-      frame:SetSize(n * SIZE + (n - 1) * GAP * 2, SIZE)
+      frame:SetSize(n * size + (n - 1) * gap * 2, size)
     else
-      frame:SetSize(SIZE, n * SIZE + (n - 1) * GAP * 3)
+      frame:SetSize(size, n * size + (n - 1) * gap * 3)
     end
     place()
     frame:SetShown(o.enabled and #names > 0)

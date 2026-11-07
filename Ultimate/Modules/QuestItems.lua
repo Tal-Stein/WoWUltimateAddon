@@ -79,6 +79,7 @@ local handle = CreateFrame("Frame", nil, frame)
 handle:SetHeight(14)
 handle:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 2)
 handle:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 0, 2)
+QIt.frame, QIt.handle = frame, handle
 local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 title:SetPoint("LEFT")
 title:SetText(L.QUEST_ITEM_BAR_TITLE)
@@ -94,12 +95,56 @@ local function onEnter(self)
   GameTooltip:SetItemByID(self.itemID)
   if self.questTitle then GameTooltip:AddLine(self.questTitle, 1, 0.82, 0) end
   GameTooltip:AddLine(self.pinned and L.ITEM_UNPIN_HINT or L.ITEM_PIN_HINT, 0.5, 0.5, 0.5)
+  GameTooltip:AddLine(L.ITEM_MENU_HINT, 0.5, 0.5, 0.5)
   GameTooltip:Show()
 end
 
+-- Right-click menu (Blizzard's context menu). `owner` is an item button or the title strip;
+-- the pin entry only appears for an item button.
+local function hideBar()
+  ns.Modules:SetEnabled("questItems", false)
+  ns:Print(L.ITEM_BAR_HIDDEN)
+end
+
+local function setOpt(key, value)
+  o()[key] = value
+  ns:Fire("ULT_SETTING_CHANGED", "questItems." .. key)
+end
+
+function QIt.ShowMenu(owner)
+  if not (MenuUtil and MenuUtil.CreateContextMenu) then
+    if ns.OpenSettings then ns.OpenSettings() end
+    return
+  end
+  MenuUtil.CreateContextMenu(owner, function(_, root)
+    root:CreateTitle(L.MODULE_QUEST_ITEMS)
+    local itemID = owner and owner.itemID
+    if itemID then
+      root:CreateCheckbox(L.ITEM_MENU_PIN, function() return o().pinned[itemID] == true end, function()
+        o().pinned[itemID] = (not o().pinned[itemID]) or nil
+        QIt.Update()
+      end)
+    end
+    root:CreateCheckbox(L.LOCK_BAR, function() return o().locked == true end,
+      function() setOpt("locked", not o().locked) end)
+    root:CreateDivider()
+    local function isMode(v) return o().mode == v end
+    local function setMode(v) setOpt("mode", v) end
+    root:CreateRadio(L.ITEM_MODE_RELEVANT, isMode, setMode, "relevant")
+    root:CreateRadio(L.ITEM_MODE_ALWAYS, isMode, setMode, "always")
+    root:CreateDivider()
+    root:CreateButton(L.ITEM_MENU_HIDE, hideBar)
+    root:CreateButton(L.OPEN_SETTINGS, function() if ns.OpenSettings then ns.OpenSettings() end end)
+  end)
+end
+
+handle:SetScript("OnMouseUp", function(self, button)
+  if button == "RightButton" then QIt.ShowMenu(self) end
+end)
+
 for i = 1, MAX_BUTTONS do
+  -- Kept at the template's own size (see UI.NativeButtonSize); the bar is scaled instead.
   local b = CreateFrame("Button", "UltimateQuestItem" .. i, frame, "SecureActionButtonTemplate, ActionButtonTemplate")
-  b:SetSize(SIZE, SIZE)
   b:RegisterForClicks("AnyUp", "AnyDown")
   b:RegisterForDrag("LeftButton")
   b:SetAttribute("type", "item")
@@ -107,8 +152,12 @@ for i = 1, MAX_BUTTONS do
   -- Shift-click pins instead of using the item.
   b:SetAttribute("shift-type1", "macro")
   b:SetAttribute("shift-macrotext1", "")
-  b:HookScript("OnClick", function(self, _, down)
+  -- Right-click opens the options menu instead of using the item.
+  b:SetAttribute("type2", "macro")
+  b:SetAttribute("macrotext2", "")
+  b:HookScript("OnClick", function(self, button, down)
     if down then return end -- registered for AnyUp+AnyDown; act once per click
+    if button == "RightButton" then QIt.ShowMenu(self); return end
     if IsShiftKeyDown and IsShiftKeyDown() and self.itemID and not InCombatLockdown() then
       o().pinned[self.itemID] = (not o().pinned[self.itemID]) or nil
       QIt.Update()
@@ -170,6 +219,9 @@ function QIt.Update()
     return a.itemID < b.itemID
   end)
   local max = math.min(opts.max or 4, MAX_BUTTONS)
+  QIt.native = QIt.native or UI.NativeButtonSize(QIt.buttons[1], SIZE)
+  local size = QIt.native
+  local gap = GAP * size / SIZE
   ns.Combat:Run("questitems.layout", function()
     local horizontal = opts.orientation ~= "VERTICAL"
     local n = 0
@@ -181,9 +233,9 @@ function QIt.Update()
         b.itemID, b.questTitle, b.pinned = item.itemID, item.title, item.pinned
         b:ClearAllPoints()
         if horizontal then
-          b:SetPoint("LEFT", frame, "LEFT", (i - 1) * (SIZE + GAP), 0)
+          b:SetPoint("LEFT", frame, "LEFT", (i - 1) * (size + gap), 0)
         else
-          b:SetPoint("TOP", frame, "TOP", 0, -(i - 1) * (SIZE + GAP))
+          b:SetPoint("TOP", frame, "TOP", 0, -(i - 1) * (size + gap))
         end
         b:Show()
       else
@@ -193,9 +245,10 @@ function QIt.Update()
       end
     end
     local count = math.max(n, 1)
-    if horizontal then frame:SetSize(count * SIZE + (count - 1) * GAP, SIZE)
-    else frame:SetSize(SIZE, count * SIZE + (count - 1) * GAP) end
-    frame:SetScale(opts.scale or 1)
+    if horizontal then frame:SetSize(count * size + (count - 1) * gap, size)
+    else frame:SetSize(size, count * size + (count - 1) * gap) end
+    QIt.barScale = (opts.scale or 1) * SIZE / size
+    frame:SetScale(QIt.barScale)
     place()
     frame:SetShown(n > 0)
     handle:SetShown(not locked())

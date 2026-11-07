@@ -39,6 +39,14 @@ function UI.LevelText(level, classification)
   return tostring(level) .. suffix
 end
 
+-- The size Blizzard's ActionButtonTemplate was built at on this client. Resizing such a button
+-- leaves its icon/border art anchored top-left, so bars keep the native size and scale instead.
+function UI.NativeButtonSize(button, fallback)
+  local ok, w = pcall(button.GetWidth, button)
+  if ok and type(w) == "number" and w > 0 then return w end
+  return fallback
+end
+
 -- Make `frame` draggable through `handle`, persisting its anchor into store.point.
 -- isLocked() is checked on every drag; moving never happens in combat.
 function UI.MakeMovable(frame, handle, store, isLocked, defaultPoint)

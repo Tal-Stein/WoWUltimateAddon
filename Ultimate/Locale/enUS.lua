@@ -59,6 +59,11 @@ L.MODULE_QUEST_ITEMS_DESC = "Clickable buttons for quest items you need to use, 
 L.QUEST_ITEM_BAR_TITLE = "Ultimate Quest Items"
 L.ITEM_PIN_HINT = "Shift-click to always show this item"
 L.ITEM_UNPIN_HINT = "Shift-click to stop always showing this item"
+L.ITEM_MENU_HINT = "Right-click for options"
+L.ITEM_MENU_PIN = "Always show this item"
+L.ITEM_MENU_HIDE = "Hide quest item bar"
+L.ITEM_BAR_HIDDEN = "Quest item bar hidden. Turn it back on under /ult > Features > Quest Items."
+L.OPEN_SETTINGS = "Settings"
 -- Services/Sounds.lua
 L.SOUND_NONE = "None"
 L.SOUND_MAP_PING = "Map Ping"

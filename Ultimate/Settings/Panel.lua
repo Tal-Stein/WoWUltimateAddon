@@ -117,10 +117,6 @@ local function buildTargeting(ctx)
     function(i) B.set("targeting.marker", i - 1) end, 1)
   ctx:Checkbox("targeting.markerSoloOnly", L.MARKER_SOLO, L.MARKER_SOLO_TIP)
 
-  ctx:Header(L.SECTION_RANGE)
-  ctx:Checkbox("targeting.range.enabled", L.RANGE_ENABLED, L.RANGE_ENABLED_TIP)
-  ctx:Slider("targeting.range.yards", L.RANGE_YARDS, 20, 60, 1, fmtInt, L.RANGE_YARDS_TIP)
-
   ctx:Header(L.SECTION_PRIORITY)
   ctx:Checkbox("targeting.rareFirst", L.RARE_FIRST, L.RARE_FIRST_TIP)
   for i = 1, #ns.db.targeting.ranking do rankSlot(ctx, i) end

@@ -21,7 +21,6 @@ ns.DB:RegisterDefaults("targeting", {
   bar = { enabled = true, portraits = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
   markers = { enabled = true, size = 40, offset = 10, colorMode = "difficulty", anim = "bob",
     animDistance = 12, animTime = 0.8, pulseScale = 1.15, topOnly = false },
-  range = { enabled = true, yards = 41 },
 })
 
 local button = CreateFrame("Button", "UltimateTargetButton", UIParent, "SecureActionButtonTemplate")

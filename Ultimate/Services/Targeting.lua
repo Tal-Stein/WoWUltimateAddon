@@ -14,7 +14,7 @@ ns.DB:RegisterDefaults("targeting", {
   autoArm = true,
   stopInCombat = true,
   fallbacks = 2,
-  marker = 0, -- raid target icon index 1-8, 0 = off
+  marker = 8, -- raid target icon index 1-8 (8 = skull), 0 = off
   markerSoloOnly = true,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
@@ -39,6 +39,20 @@ local function markerAllowed()
   if o.markerSoloOnly and IsInGroup and ns.Safe.read(IsInGroup) then return false end
   return true
 end
+
+-- The /tm line for targeting macros (key and bar), or nil when the marker is off or not allowed.
+function T:MarkerLine()
+  return markerAllowed() and ns.Macro.markerLine(opts().marker) or nil
+end
+
+-- The marker used to default to off; turn it on once for profiles saved with that default.
+ns:On("ULT_DB_READY", T, function()
+  local o = ns.db.targeting
+  if o and (o.markerVersion or 1) < 2 then
+    if o.marker == 0 then o.marker = 8 end
+    o.markerVersion = 2
+  end
+end)
 
 function T:BuildMacroText()
   local o = opts()

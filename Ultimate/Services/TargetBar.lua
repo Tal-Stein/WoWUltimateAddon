@@ -177,7 +177,8 @@ function Bar:Layout(force)
   for i = 1, math.min(o.max or 6, MAX_BUTTONS) do
     if self.ranked[i] then names[#names + 1] = self.ranked[i] end
   end
-  local signature = table.concat(names, "\001") .. "|" .. tostring(o.enabled) .. tostring(o.orientation)
+  local marker = ns.Targeting:MarkerLine()
+  local signature = table.concat(names, "\001") .. "|" .. tostring(marker) .. tostring(o.enabled) .. tostring(o.orientation)
     .. tostring(o.perRow) .. tostring(o.scale) .. tostring(locked())
   if not force and signature == self.signature then
     self:UpdateVisuals()
@@ -201,7 +202,7 @@ function Bar:Layout(force)
       local name = names[i] and ns.Units.sanitizeName(names[i])
       local cell = grid.cells[i]
       if name and cell then
-        b:SetAttribute("macrotext", "/cleartarget\n/targetexact " .. name)
+        b:SetAttribute("macrotext", "/cleartarget\n/targetexact " .. name .. (marker and ("\n" .. marker) or ""))
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", frame, "TOPLEFT", cell.x + (cellW - size) / 2, cell.y)
         b.label:SetWidth(cellW)
@@ -238,10 +239,17 @@ ns:On("ULT_RESET_POSITIONS", Bar, function()
 end)
 
 ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
-  if path and (path:find("^targeting%.bar") or path == "core.lockAll") then
+  if path and (path:find("^targeting%.bar") or path == "core.lockAll" or path == "targeting.marker"
+      or path == "targeting.markerSoloOnly") then
     Bar.ranked = Bar.ranked or {}
     Bar:Layout(true)
   end
+end)
+
+-- Group changes can turn the solo-only raid marker on or off.
+ns:On("GROUP_ROSTER_UPDATE", Bar, function()
+  Bar.ranked = Bar.ranked or {}
+  Bar:Layout()
 end)
 
 -- Put the (empty) panel up at login rather than waiting for the first target.

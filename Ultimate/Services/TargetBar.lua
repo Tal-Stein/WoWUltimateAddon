@@ -98,12 +98,19 @@ function Bar:UpdateVisuals()
   end
 end
 
-function Bar:Layout()
+function Bar:Layout(force)
   local o = opts()
   local names = {}
   for i = 1, math.min(o.max or 6, MAX_BUTTONS) do
     if self.ranked[i] then names[#names + 1] = self.ranked[i] end
   end
+  local signature = table.concat(names, "") .. "|" .. tostring(o.enabled) .. tostring(o.orientation)
+    .. tostring(o.scale) .. tostring(locked())
+  if not force and signature == self.signature then
+    self:UpdateVisuals()
+    return
+  end
+  self.signature = signature
   ns.Combat:Run("targetbar.layout", function()
     local horizontal = o.orientation ~= "VERTICAL"
     for i, b in ipairs(Bar.buttons) do
@@ -146,12 +153,12 @@ end)
 ns:On("ULT_RESET_POSITIONS", Bar, function()
   opts().point = nil
   Bar.ranked = Bar.ranked or {}
-  Bar:Layout()
+  Bar:Layout(true)
 end)
 
 ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
   if path and (path:find("^targeting%.bar") or path == "core.lockAll") then
     Bar.ranked = Bar.ranked or {}
-    Bar:Layout()
+    Bar:Layout(true)
   end
 end)

@@ -69,13 +69,14 @@ function QT.AlertSound(mob, playerLevel)
 end
 
 function QT.OnMobAdded(mob)
-  local a = o().alerts
-  if not a.enabled or mob.tapped then return end
+  if mob.tapped then return end
   local quests = relevantQuests(mob)
   if not quests then
     if o().tooltipLearning then QT.LearnFromTooltip(mob) end
     return
   end
+  local a = o().alerts
+  if not a.enabled then return end
   local level, grey = ns.Alerts.PlayerLevels()
   if not ns.Filters.passes(mob, level, grey, o().filters) then return end
   QT.gate:configure(a)
@@ -200,7 +201,6 @@ function QT.def.BuildSettings(ctx)
   ctx:Checkbox("questTargeting.filters.hideGrey", L.HIDE_GREY)
   ctx:Checkbox("questTargeting.filters.includeElites", L.INCLUDE_ELITES)
   ctx:Checkbox("questTargeting.filters.includeBosses", L.INCLUDE_BOSSES)
-  ctx:Checkbox("questTargeting.filters.hideTapped", L.HIDE_TAPPED, L.HIDE_TAPPED_TIP)
 
   ctx:Header(L.SECTION_ALERTS)
   ctx:Checkbox("questTargeting.alerts.enabled", L.ALERTS_ENABLED)

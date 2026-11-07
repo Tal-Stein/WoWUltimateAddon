@@ -107,7 +107,8 @@ for i = 1, MAX_BUTTONS do
   -- Shift-click pins instead of using the item.
   b:SetAttribute("shift-type1", "macro")
   b:SetAttribute("shift-macrotext1", "")
-  b:HookScript("OnClick", function(self)
+  b:HookScript("OnClick", function(self, _, down)
+    if down then return end -- registered for AnyUp+AnyDown; act once per click
     if IsShiftKeyDown and IsShiftKeyDown() and self.itemID and not InCombatLockdown() then
       o().pinned[self.itemID] = (not o().pinned[self.itemID]) or nil
       QIt.Update()
@@ -230,7 +231,7 @@ QIt.def = ns.Modules:Register({
   OnDisable = function()
     ns:OffAll(QIt)
     ns.Combat:Run("questitems.layout", function()
-      for _, b in ipairs(QIt.buttons) do b.itemID = nil; b:Hide() end
+      for _, b in ipairs(QIt.buttons) do b.itemID = nil; b:SetAttribute("item", nil); b:Hide() end
       frame:Hide()
     end)
   end,

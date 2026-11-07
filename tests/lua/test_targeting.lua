@@ -93,3 +93,22 @@ describe("Targeting", function()
     T:UnregisterProvider("p")
   end)
 end)
+
+describe("Targeting review fixes", function()
+  it("clears the key when nothing is left, even with auto-arm off", function()
+    T:RegisterProvider("p", function() return { cand("Stale", 1, 1) } end)
+    T:Refresh()
+    ns.db.targeting.autoArm = false
+    T:UnregisterProvider("p")
+    assertEq(macro(), "/cleartarget [dead]")
+    ns.db.targeting.autoArm = true
+  end)
+  it("does not rewrite an unchanged macro", function()
+    T:RegisterProvider("p", function() return { cand("Same", 1, 1) } end)
+    T:Refresh()
+    local before = #__attrLog
+    T:Refresh()
+    assertEq(#__attrLog, before, "no SetAttribute for identical text")
+    T:UnregisterProvider("p")
+  end)
+end)

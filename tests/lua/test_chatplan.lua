@@ -22,6 +22,7 @@ end
 local function settings(over)
   local s = { categories = {}, removeFromGeneral = true, ownedNames = {}, removedFromGeneral = {} }
   for _, c in ipairs(P.CATEGORIES) do s.categories[c.key] = { focused = c.focused, tab = c.tab } end
+  s.categories.raid.focused = true -- these tests exercise the mechanics with raid switched on
   for k, v in pairs(over or {}) do s[k] = v end
   return s
 end
@@ -38,6 +39,11 @@ end
 local function has(list, item) for _, v in ipairs(list) do if v == item then return true end end return false end
 
 describe("ChatPlan.desiredTabs", function()
+  it("raid is not focused by default", function()
+    for _, c in ipairs(P.CATEGORIES) do
+      if c.key == "raid" then assertFalse(c.focused) end
+    end
+  end)
   it("Focused first with every focused category's groups, then one tab per 'own tab' category", function()
     local tabs = P.desiredTabs(settings(), ctx())
     local names = {}

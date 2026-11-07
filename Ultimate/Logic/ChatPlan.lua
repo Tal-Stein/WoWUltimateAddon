@@ -18,7 +18,7 @@ local GENERAL = 1
 P.CATEGORIES = {
   { key = "whispers", groups = { "WHISPER", "BN_WHISPER" }, focused = true, tab = true },
   { key = "party", groups = { "PARTY", "PARTY_LEADER" }, focused = true, tab = true },
-  { key = "raid", groups = { "RAID", "RAID_LEADER", "RAID_WARNING" }, focused = true, tab = true },
+  { key = "raid", groups = { "RAID", "RAID_LEADER", "RAID_WARNING" }, focused = false, tab = true },
   { key = "instance", groups = { "INSTANCE_CHAT", "INSTANCE_CHAT_LEADER" }, focused = true, tab = false },
   { key = "guild", groups = { "GUILD", "GUILD_DISCORD" }, focused = true, tab = true },
   { key = "officer", groups = { "OFFICER" }, focused = true, tab = false },

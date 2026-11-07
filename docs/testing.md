@@ -94,14 +94,16 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] `/ult` → Focused Chat lists Whispers, Party, Raid, Instance, Guild, Officer, Say & Yell and
       Emotes, each with "Focused" and "own tab". Press **Apply**; a reload prompt appears.
 - [ ] After the reload the main chat has tabs: General, Combat Log, Focused, Whispers, Party,
-      Raid, Guild. Focused shows all focused chats; Guild shows only guild (and Discord guild)
+      Guild (Raid only if you focus it). Focused shows all focused chats; Guild shows only guild (and Discord guild)
       chat. Tabs flash when something new arrives.
-- [ ] General no longer shows whispers, party, raid or guild, but still shows say, yell, emotes
-      and General/Trade channels.
+- [ ] General still shows everything as before (whispers, party, guild, say, channels...); the
+      new tabs only add to it.
+- [ ] A character set up by the first version gets General's chats back at login, with one
+      reload prompt, and its Raid tab closes.
 - [ ] New tabs start with "-- Earlier messages --" followed by this session's matching lines.
 - [ ] Pressing Apply again without changes says the tabs are already set up.
-- [ ] Unticking Guild and applying closes the Guild tab and General gets guild chat back.
-- [ ] Turning Focused Chat off (root page) closes its tabs and restores General after the reload.
+- [ ] Unticking Guild and applying closes the Guild tab.
+- [ ] Turning Focused Chat off (root page) closes its tabs after the reload.
 - [ ] No Lua errors from chat, including in a raid or dungeon.
 
 ## Combat safety (must never fail)

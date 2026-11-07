@@ -55,20 +55,31 @@ function MB:Create()
   b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   b:RegisterForDrag("LeftButton")
   b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-  local overlay = b:CreateTexture(nil, "OVERLAY")
-  overlay:SetSize(53, 53)
-  overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-  overlay:SetPoint("TOPLEFT")
+  -- Same art and sizes as LibDBIcon. Modern clients (those with the AddOns compartment) draw the
+  -- tracking border differently, so the background and icon are centred there; the legacy
+  -- offsets would sit up and to the left.
+  local modern = AddonCompartmentFrame ~= nil
+  local border = b:CreateTexture(nil, "OVERLAY")
+  border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  border:SetSize(modern and 50 or 53, modern and 50 or 53)
+  border:SetPoint("TOPLEFT")
   local bg = b:CreateTexture(nil, "BACKGROUND")
-  bg:SetSize(20, 20)
   bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-  bg:SetPoint("TOPLEFT", 7, -5)
   local icon = b:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(17, 17)
   icon:SetTexture(ICON)
   icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
-  icon:SetPoint("TOPLEFT", 7, -6)
-  b.icon = icon
+  if modern then
+    bg:SetSize(24, 24)
+    bg:SetPoint("CENTER")
+    icon:SetSize(18, 18)
+    icon:SetPoint("CENTER")
+  else
+    bg:SetSize(20, 20)
+    bg:SetPoint("TOPLEFT", 7, -5)
+    icon:SetSize(17, 17)
+    icon:SetPoint("TOPLEFT", 7, -6)
+  end
+  b.border, b.background, b.icon = border, bg, icon
   b:SetScript("OnClick", onClick)
   b:SetScript("OnEnter", onEnter)
   b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

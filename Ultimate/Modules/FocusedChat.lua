@@ -1,8 +1,10 @@
 local ADDON, ns = ...
 local L = ns.L
 
--- Focused Chat: a "Focused" tab with the chats that matter (whispers, party, raid, guild, ...)
--- plus one tab per chosen category, all real Blizzard chat tabs in the main dock.
+-- Focused Chat: a "Focused" tab with the chats that matter (whispers, party, guild, ...) plus one
+-- tab per chosen category, all real Blizzard chat tabs in the main dock. Purely additive: General
+-- keeps everything it shows; the planner's "remove from General" path is only used to give back
+-- what the first version of this module took out of it.
 --
 -- Taint safety: this module never writes Blizzard's live chat frames. It changes only the saved
 -- chat-window configuration (the same client functions Blizzard's chat settings use) and then
@@ -118,7 +120,7 @@ end
 
 local function plan(settingsOverride)
   local s = charState()
-  local settings = settingsOverride or { categories = o().categories, removeFromGeneral = o().removeFromGeneral }
+  local settings = settingsOverride or { categories = o().categories, removeFromGeneral = false }
   settings.ownedNames, settings.removedFromGeneral = s.ownedNames, s.removedFromGeneral
   local ctx = { labels = labels(), available = available() }
   local state = FC.ReadState()
@@ -172,7 +174,7 @@ function FC:ReplayHistory()
   s.pendingHistory = {}
 end
 
-local defaults = { removeFromGeneral = true, copyHistory = true, categories = {} }
+local defaults = { copyHistory = true, categories = {} }
 for _, c in ipairs(P.CATEGORIES) do defaults.categories[c.key] = { focused = c.focused, tab = c.tab } end
 
 FC.def = ns.Modules:Register({
@@ -184,10 +186,31 @@ FC.def = ns.Modules:Register({
   OnDisable = function() FC:Remove() end,
 })
 
+-- Version 2: tabs are additive and raid is no longer focused by default. Characters set up by
+-- version 1 get raid switched off once (their saved setting was the old default).
+ns:On("ULT_DB_READY", FC, function()
+  local fc = ns.db.focusedChat
+  if (fc.version or 1) < 2 then
+    if fc.categories and fc.categories.raid then fc.categories.raid.focused = false end
+    fc.removeFromGeneral = nil
+    fc.version = 2
+  end
+end)
+
+-- Give General back whatever version 1 took out of it (and apply the new defaults), once.
+function FC:RestoreGeneral()
+  if not next(charState().removedFromGeneral) then return end
+  ns:Print(L.CHAT_GENERAL_RESTORED)
+  run(nil)
+end
+
 ns:On("PLAYER_ENTERING_WORLD", FC, function()
   ns:Off("PLAYER_ENTERING_WORLD", FC)
   -- Give Blizzard's chat windows a moment to rebuild from their configuration first.
-  C_Timer.After(2, function() ns.SafeCall(FC.ReplayHistory, FC) end)
+  C_Timer.After(2, function()
+    ns.SafeCall(FC.ReplayHistory, FC)
+    ns.SafeCall(FC.RestoreGeneral, FC)
+  end)
 end)
 
 function FC.def.BuildSettings(ctx)
@@ -198,7 +221,6 @@ function FC.def.BuildSettings(ctx)
     ctx:Checkbox("focusedChat.categories." .. c.key .. ".tab", string.format(L.CHAT_OWN_TAB, names[c.key]), L.CHAT_OWN_TAB_TIP)
   end
   ctx:Header(L.CHAT_SECTION_OPTIONS)
-  ctx:Checkbox("focusedChat.removeFromGeneral", L.CHAT_REMOVE_GENERAL, L.CHAT_REMOVE_GENERAL_TIP)
   ctx:Checkbox("focusedChat.copyHistory", L.CHAT_COPY_HISTORY, L.CHAT_COPY_HISTORY_TIP)
   ctx:Button(L.CHAT_APPLY_LABEL, L.CHAT_APPLY, function() FC:Apply() end, L.CHAT_APPLY_TIP)
 end

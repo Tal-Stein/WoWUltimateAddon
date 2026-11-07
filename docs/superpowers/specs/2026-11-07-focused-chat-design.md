@@ -5,7 +5,7 @@ rest of this note covers calls made by Claude; they are marked *(call)*.
 
 ## Intent
 Keep the chat that matters apart from the noise around the player. Social and world chatter
-(say, yell, emotes, General/Trade channels) stays in **General**. The chats the owner marks as
+(say, yell, emotes, General/Trade channels) stays in **General**. **Tabs are additive:** General keeps working as usual and still shows everything (owner, 2026-11-07). The chats the owner marks as
 *focused* go to a combined **Focused** tab. Each focused category can also get **its own tab**,
 for catching up on one conversation, such as guild chat only.
 
@@ -14,15 +14,15 @@ for catching up on one conversation, such as guild chat only.
   Party | Raid | Guild …`. They have Blizzard's fonts, links, scrolling, tab flashing on new
   messages, and the tab right-click menu.
 - `/ult` → **Focused Chat** has one row per category with two checkboxes: **Focused** and
-  **Own tab**. There are also options for **Remove focused chats from General** and **Copy recent
-  history into new tabs**, and an **Apply** button that asks for a `/reload`.
+  **Own tab**. There is also an option to **Copy recent history into new tabs**, and an **Apply**
+  button that asks for a `/reload`.
 
 ## Categories and their message groups
 | Category | Groups | Focused by default | Own tab by default |
 |---|---|---|---|
 | Whispers | WHISPER, BN_WHISPER | yes | yes |
 | Party | PARTY, PARTY_LEADER | yes | yes |
-| Raid | RAID, RAID_LEADER, RAID_WARNING | yes | yes |
+| Raid | RAID, RAID_LEADER, RAID_WARNING | no (owner) | yes |
 | Instance | INSTANCE_CHAT, INSTANCE_CHAT_LEADER | yes | no |
 | Guild | GUILD, GUILD_DISCORD | yes | yes |
 | Officer | OFFICER | yes | no |

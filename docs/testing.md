@@ -90,6 +90,20 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match
       still works.
 
+## Focused Chat
+- [ ] `/ult` → Focused Chat lists Whispers, Party, Raid, Instance, Guild, Officer, Say & Yell and
+      Emotes, each with "Focused" and "own tab". Press **Apply**; a reload prompt appears.
+- [ ] After the reload the main chat has tabs: General, Combat Log, Focused, Whispers, Party,
+      Raid, Guild. Focused shows all focused chats; Guild shows only guild (and Discord guild)
+      chat. Tabs flash when something new arrives.
+- [ ] General no longer shows whispers, party, raid or guild, but still shows say, yell, emotes
+      and General/Trade channels.
+- [ ] New tabs start with "-- Earlier messages --" followed by this session's matching lines.
+- [ ] Pressing Apply again without changes says the tabs are already set up.
+- [ ] Unticking Guild and applying closes the Guild tab and General gets guild chat back.
+- [ ] Turning Focused Chat off (root page) closes its tabs and restores General after the reload.
+- [ ] No Lua errors from chat, including in a raid or dungeon.
+
 ## Combat safety (must never fail)
 - [ ] Enter combat while quest mobs appear and disappear, and while looting quest items. There
       is never an "Interface action failed because of an AddOn" message. The bar and item bar

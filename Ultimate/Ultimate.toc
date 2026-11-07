@@ -20,6 +20,7 @@ Logic\Macro.lua
 Logic\AlertGate.lua
 Logic\ItemRelevance.lua
 Logic\Grid.lua
+Logic\ChatPlan.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua
@@ -39,6 +40,7 @@ Services\MinimapButton.lua
 Modules\QuestTargeting.lua
 Modules\RareScanner.lua
 Modules\QuestItems.lua
+Modules\FocusedChat.lua
 Settings\Builder.lua
 Settings\Lists.lua
 Settings\Panel.lua

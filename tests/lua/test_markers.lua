@@ -82,7 +82,7 @@ describe("Markers", function()
   end)
   it("bobs a longer path by default", function()
     local m = ns.db.targeting.markers
-    assertEq(m.animDistance, 12); assertEq(m.animTime, 0.8); assertEq(m.pulseScale, 1.15)
+    assertEq(m.animDistance, 16); assertEq(m.animTime, 0.8); assertEq(m.pulseScale, 1.15)
   end)
   it("uses the animation settings and restarts when they change", function()
     local m = ns.db.targeting.markers
@@ -90,7 +90,7 @@ describe("Markers", function()
     fire()
     local a = M:ForPlate(plateA)
     local up, down = a.bob.anims[1], a.bob.anims[2]
-    assertEq(up.offsetY, 12); assertEq(down.offsetY, -12)
+    assertEq(up.offsetY, 16); assertEq(down.offsetY, -16)
     assertEq(up.duration, 0.8); assertEq(down.startDelay, 0.8)
     m.animDistance, m.animTime = 20, 1.2
     ns:Fire("ULT_SETTING_CHANGED", "targeting.markers.animDistance")

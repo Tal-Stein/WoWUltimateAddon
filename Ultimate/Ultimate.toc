@@ -11,3 +11,9 @@
 
 Locale\enUS.lua
 Logic\Tables.lua
+Core\Init.lua
+Core\Safe.lua
+Core\Combat.lua
+Core\DB.lua
+Core\Modules.lua
+Core\Slash.lua

@@ -160,3 +160,12 @@ function __advance(sec, tick)
     end
   end
 end
+
+-- Boot the add-on like the client does: SavedVariables restored, ADDON_LOADED, PLAYER_LOGIN.
+function __boot(account, char)
+  UltimateDB = account
+  UltimateCharDB = char
+  __fire("ADDON_LOADED", "Ultimate")
+  __fire("PLAYER_LOGIN")
+end
+SlashCmdList = {}

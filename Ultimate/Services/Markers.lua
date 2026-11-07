@@ -57,7 +57,7 @@ end
 
 -- Set the animations' path and timing from the settings (only while stopped).
 local function configure(f, o)
-  local dist, time, scale = o.animDistance or 12, o.animTime or 0.8, o.pulseScale or 1.15
+  local dist, time, scale = o.animDistance or 16, o.animTime or 0.8, o.pulseScale or 1.15
   f.up:SetOffset(0, dist); f.up:SetDuration(time)
   f.down:SetOffset(0, -dist); f.down:SetDuration(time); f.down:SetStartDelay(time)
   f.grow:SetScale(scale, scale); f.grow:SetDuration(time)

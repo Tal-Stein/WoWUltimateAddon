@@ -236,8 +236,12 @@ QIt.def = ns.Modules:Register({
   end,
 })
 
-L.MODULE_QUEST_ITEMS = "Quest Items"
-L.MODULE_QUEST_ITEMS_DESC = "Clickable buttons for quest items you need to use, without opening your bags."
-L.QUEST_ITEM_BAR_TITLE = "Ultimate Quest Items"
-L.ITEM_PIN_HINT = "Shift-click to always show this item"
-L.ITEM_UNPIN_HINT = "Shift-click to stop always showing this item"
+function QIt.def.BuildSettings(ctx)
+  local P = ns.SettingsPanel
+  ctx:Dropdown("questItems.mode", L.ITEM_MODE, {
+    { value = "relevant", label = L.ITEM_MODE_RELEVANT }, { value = "always", label = L.ITEM_MODE_ALWAYS } }, L.ITEM_MODE_TIP)
+  ctx:Slider("questItems.max", L.ITEM_MAX, 1, 8, 1, P.fmt.int)
+  ctx:Dropdown("questItems.orientation", L.ORIENTATION, P.ORIENTATIONS)
+  ctx:Slider("questItems.scale", L.SCALE, 0.5, 2, 0.05, P.fmt.percent)
+  ctx:Checkbox("questItems.locked", L.LOCK_BAR, L.LOCK_BAR_TIP)
+end

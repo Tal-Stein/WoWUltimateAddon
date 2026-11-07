@@ -82,12 +82,16 @@ RS.def = ns.Modules:Register({
   end,
 })
 
-L.MODULE_RARES = "Rare Scanner"
-L.MODULE_RARES_DESC = "Always watches nameplates for rare, rare-elite and world-boss mobs, and anything on your watch list."
-L.ALERT_RARE = "RARE: %s (%s %s)"
-L.RARE_ELITE = "Rare Elite"
-L.BOSS = "Boss"
-L.WATCHED = "Watched"
-L.TAGGED_SUFFIX = "(tagged)"
-L.RARE_HISTORY = "Rares seen this session:"
-L.RARE_HISTORY_NONE = "none yet"
+function RS.def.BuildSettings(ctx)
+  local P = ns.SettingsPanel
+  ctx:Header(L.SECTION_ALERTS)
+  ctx:Checkbox("rareScanner.showText", L.ALERTS_TEXT)
+  ctx:Dropdown("rareScanner.channel", L.SOUND_CHANNEL, P.CHANNELS)
+  P.SoundRow(ctx, "rareScanner.sound", L.RARE_SOUND, "rareScanner.channel")
+  ctx:Checkbox("rareScanner.alertTagged", L.ALERT_TAGGED)
+  ctx:Slider("rareScanner.cooldown", L.RARE_COOLDOWN, 30, 1800, 30, P.fmt.int)
+  ctx:Header(L.SECTION_BAR)
+  ctx:Dropdown("rareScanner.barMode", L.BAR_MODE, {
+    { value = "first", label = L.BAR_FIRST }, { value = "ranked", label = L.BAR_RANKED },
+    { value = "hidden", label = L.BAR_HIDDEN } })
+end

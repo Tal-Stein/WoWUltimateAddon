@@ -192,28 +192,34 @@ QT.def = ns.Modules:Register({
   end,
 })
 
-L.MODULE_QUEST_TARGETING = "Quest Targeting"
-L.MODULE_QUEST_TARGETING_DESC = "Finds mobs you need for your quests, marks them, alerts you, and targets them with one key."
-L.ALERT_QUEST_MOB = "Quest mob: %s (%s)"
-L.SCAN_HEADER = "Player level %d (grey at %d and below). Quest database: %s"
-L.SCAN_DB_ON = "Questie"
-L.SCAN_DB_OFF = "unavailable (tooltips only)"
-L.SCAN_NONE = "No quest mobs indexed."
-L.SCAN_NEARBY = "Quest mobs on screen:"
-L.TAGGED = "tagged by someone else"
-L.OK = "OK"
-L.REASON_dead = "dead"
-L.REASON_player = "player"
-L.REASON_friendly = "not attackable"
-L.REASON_tapped = "tagged by someone else"
-L.REASON_excluded = "on your exclusion list"
-L.REASON_boss = "boss (bosses are off)"
-L.REASON_elite = "elite (elites are off)"
-L.REASON_level = "outside your level window"
-L.REASON_grey = "grey (no XP)"
-L.PLATES_OFF_WARNING = "Enemy nameplates are off. Ultimate can only see mobs that have nameplates."
-L.PLATES_PROMPT = "Ultimate finds quest mobs through enemy nameplates, which are currently off.\n\nTurn on enemy nameplates?"
-L.ENABLE = ENABLE or "Enable"
-L.NOT_NOW = "Not now"
-L.DONT_ASK = "Don't ask again"
-L.QUESTIEDB_PROMPT = "Ultimate couldn't use Questie's database (QuestieDB missing or a different version).\n\nQuest Targeting will rely on mob tooltips only until Questie is updated."
+function QT.def.BuildSettings(ctx)
+  local P = ns.SettingsPanel
+  ctx:Header(L.SECTION_FILTERS)
+  ctx:Slider("questTargeting.filters.minOffset", L.MIN_OFFSET, -20, 0, 1, P.fmt.levels, L.LEVEL_WINDOW_TIP)
+  ctx:Slider("questTargeting.filters.maxOffset", L.MAX_OFFSET, 0, 10, 1, P.fmt.levels, L.LEVEL_WINDOW_TIP)
+  ctx:Checkbox("questTargeting.filters.hideGrey", L.HIDE_GREY)
+  ctx:Checkbox("questTargeting.filters.includeElites", L.INCLUDE_ELITES)
+  ctx:Checkbox("questTargeting.filters.includeBosses", L.INCLUDE_BOSSES)
+  ctx:Checkbox("questTargeting.filters.hideTapped", L.HIDE_TAPPED, L.HIDE_TAPPED_TIP)
+
+  ctx:Header(L.SECTION_ALERTS)
+  ctx:Checkbox("questTargeting.alerts.enabled", L.ALERTS_ENABLED)
+  ctx:Checkbox("questTargeting.alerts.showText", L.ALERTS_TEXT)
+  ctx:Dropdown("questTargeting.alerts.channel", L.SOUND_CHANNEL, P.CHANNELS)
+  local ch = "questTargeting.alerts.channel"
+  P.SoundRow(ctx, "questTargeting.alerts.sounds.regular", L.SOUND_REGULAR, ch)
+  P.SoundRow(ctx, "questTargeting.alerts.sounds.elite", L.SOUND_ELITE, ch)
+  P.SoundRow(ctx, "questTargeting.alerts.sounds.boss", L.SOUND_BOSS, ch)
+  ctx:Checkbox("questTargeting.alerts.levelSounds.enabled", L.LEVEL_SOUNDS, L.LEVEL_SOUNDS_TIP)
+  P.SoundRow(ctx, "questTargeting.alerts.levelSounds.easy", L.SOUND_EASY, ch)
+  P.SoundRow(ctx, "questTargeting.alerts.levelSounds.dangerous", L.SOUND_DANGEROUS, ch)
+  ctx:Slider("questTargeting.alerts.guidCooldown", L.GUID_COOLDOWN, 10, 600, 10, P.fmt.int)
+  ctx:Slider("questTargeting.alerts.nameCooldown", L.NAME_COOLDOWN, 0, 60, 1, P.fmt.int)
+
+  ctx:Header(L.SECTION_MISC)
+  ctx:Checkbox("questTargeting.tooltipLearning", L.TOOLTIP_LEARNING, L.TOOLTIP_LEARNING_TIP)
+  ctx:Checkbox("questTargeting.prompts.enemyPlates", L.PLATES_PROMPT_SETTING)
+  ctx:Button(L.ENEMY_PLATES, L.TURN_ON, function()
+    ns.Combat:Run("cvar.plates", function() SetCVar("nameplateShowEnemies", "1") end)
+  end, L.ENEMY_PLATES_TIP)
+end

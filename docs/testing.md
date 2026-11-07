@@ -65,6 +65,11 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] With "Always while in bags", every usable quest item appears.
 - [ ] Clicking uses the item. Shift-click pins it (star) without using it. Dragging puts it on
       an action bar.
+- [ ] Right-clicking an item button or the bar's title opens a menu: Always show this item,
+      Lock bar, show mode, Hide quest item bar, Settings. Right-click never uses the item.
+      "Hide" turns off Quest Items, and a chat line says where to turn it back on.
+- [ ] Item icons, borders and cooldown spirals are centred in their buttons, and so are the
+      target bar's.
 - [ ] Bind "Use quest item 1" and press it.
 - [ ] Cooldown spirals and counts update.
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match

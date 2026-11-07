@@ -32,7 +32,8 @@ function Macro.build(names, cursor, opts)
     fallbacks[#fallbacks + 1] = "/targetexact [noexists] " .. clean[idx]
   end
 
-  local marker = (opts.marker or 0) > 0 and ("/tm [exists,harm,nodead] " .. opts.marker) or nil
+  -- "!" sets the marker without toggling it off if it is already there.
+  local marker = (opts.marker or 0) > 0 and ("/tm [exists,harm,nodead] !" .. opts.marker) or nil
 
   local function assemble()
     local lines = {}

@@ -87,7 +87,7 @@ describe("DB and modules", function()
     ns.Modules:SetEnabled("alpha", true)
     assertEq(enables, 2)
     local keys = {}
-    for def in ns.Modules:Iterate() do keys[#keys + 1] = def.key end
+    for def in ns.Modules:Iterate() do if def.key == "alpha" or def.key == "beta" then keys[#keys + 1] = def.key end end
     assertEq(keys, { "alpha", "beta" }, "registration order")
   end)
 end)

@@ -30,3 +30,6 @@ Services\UIUtil.lua
 Services\Targeting.lua
 Services\TargetBar.lua
 Services\Markers.lua
+Services\Sounds.lua
+Services\Alerts.lua
+Modules\QuestTargeting.lua

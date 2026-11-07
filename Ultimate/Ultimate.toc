@@ -19,6 +19,7 @@ Logic\Ranking.lua
 Logic\Macro.lua
 Logic\AlertGate.lua
 Logic\ItemRelevance.lua
+Logic\Grid.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua

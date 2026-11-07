@@ -56,7 +56,7 @@ function MB:Create()
   b:RegisterForDrag("LeftButton")
   b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
   -- Same art and sizes as LibDBIcon. Modern clients (those with the AddOns compartment) draw the
-  -- tracking border differently, so the background and icon are centred there; the legacy
+  -- tracking border differently, so the background and icon are centred there (2px right, checked in game); the legacy
   -- offsets would sit up and to the left.
   local modern = AddonCompartmentFrame ~= nil
   local border = b:CreateTexture(nil, "OVERLAY")
@@ -70,9 +70,9 @@ function MB:Create()
   icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
   if modern then
     bg:SetSize(24, 24)
-    bg:SetPoint("CENTER")
+    bg:SetPoint("CENTER", 2, 0)
     icon:SetSize(18, 18)
-    icon:SetPoint("CENTER")
+    icon:SetPoint("CENTER", 2, 0)
   else
     bg:SetSize(20, 20)
     bg:SetPoint("TOPLEFT", 7, -5)

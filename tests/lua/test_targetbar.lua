@@ -2,7 +2,9 @@ local ns = __ns
 local Bar = ns.TargetBar
 
 C_NamePlate = { GetNamePlates = function() return {} end, GetNamePlateForUnit = function() end }
+IsInGroup = function() return false end
 __boot(nil, {})
+ns.db.targeting.marker = 0
 
 local function changed(names)
   local byName = {}
@@ -23,6 +25,19 @@ describe("TargetBar", function()
     assertEq(UltimateTargetBarButton2:GetAttribute("macrotext"), "/cleartarget\n/targetexact B")
     assertTrue(UltimateTargetBarButton1:IsShown())
     assertFalse(UltimateTargetBarButton3:IsShown())
+  end)
+  it("places the raid marker from the bar buttons too", function()
+    ns.db.targeting.marker = 8
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.marker")
+    changed({ "A" })
+    assertEq(UltimateTargetBarButton1:GetAttribute("macrotext"), "/cleartarget\n/targetexact A\n/tm [exists,harm,nodead] !8")
+    IsInGroup = function() return true end
+    __fire("GROUP_ROSTER_UPDATE")
+    assertEq(UltimateTargetBarButton1:GetAttribute("macrotext"), "/cleartarget\n/targetexact A", "solo-only by default")
+    IsInGroup = function() return false end
+    ns.db.targeting.marker = 0
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.marker")
+    assertEq(UltimateTargetBarButton1:GetAttribute("macrotext"), "/cleartarget\n/targetexact A")
   end)
   it("caps at the configured maximum", function()
     ns.db.targeting.bar.max = 2

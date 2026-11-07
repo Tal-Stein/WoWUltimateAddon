@@ -9,6 +9,13 @@ local EMPTY = "/cleartarget [dead]"
 
 local function join(lines) return table.concat(lines, "\n") end
 
+-- Raid marker line for a hostile live target, or nil for 0/off. Blizzard's /tm: "!" sets the
+-- marker without toggling it off when it is already there.
+function Macro.markerLine(marker)
+  if (marker or 0) <= 0 then return nil end
+  return "/tm [exists,harm,nodead] !" .. marker
+end
+
 -- names: ranked names; cursor: index of the primary name; opts: { stopInCombat, fallbacks, marker }
 function Macro.build(names, cursor, opts)
   local clean = {}
@@ -32,8 +39,7 @@ function Macro.build(names, cursor, opts)
     fallbacks[#fallbacks + 1] = "/targetexact [noexists] " .. clean[idx]
   end
 
-  -- "!" sets the marker without toggling it off if it is already there.
-  local marker = (opts.marker or 0) > 0 and ("/tm [exists,harm,nodead] !" .. opts.marker) or nil
+  local marker = Macro.markerLine(opts.marker)
 
   local function assemble()
     local lines = {}

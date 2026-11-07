@@ -6,6 +6,8 @@ C_NamePlate = { GetNamePlates = function() return {} end, GetNamePlateForUnit = 
 IsInGroup = function() return false end
 
 __boot(nil, {})
+local defaultMarker = ns.db.targeting.marker
+ns.db.targeting.marker = 0
 
 local function cand(name, level, remaining, extra)
   local c = { name = name, level = level, remaining = remaining, count = 1, mobs = {}, kind = "quest" }
@@ -16,6 +18,17 @@ end
 local function macro() return UltimateTargetButton:GetAttribute("macrotext") end
 
 describe("Targeting", function()
+  it("marks the target with a skull by default", function()
+    assertEq(defaultMarker, 8)
+  end)
+  it("turns the marker on once for profiles saved with the old 'off' default", function()
+    UltimateDB = { scopeVersion = 2, scope = "account", profile = { targeting = { marker = 0 } } }
+    ns.DB:Load()
+    assertEq(ns.db.targeting.marker, 8)
+    ns.db.targeting.marker = 0
+    ns.DB:Load()
+    assertEq(ns.db.targeting.marker, 0, "choosing 'none' afterwards sticks")
+  end)
   it("button is a secure macro button", function()
     assertEq(UltimateTargetButton:GetAttribute("type"), "macro")
     assertTrue(UltimateTargetButton.secure)

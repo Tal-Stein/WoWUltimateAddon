@@ -113,6 +113,7 @@ function Frame:GetLooping() return self.looping end
 function Frame:SetDuration(v) self.duration = v end
 function Frame:SetStartDelay(v) self.startDelay = v end
 function Frame:SetSmoothing(v) self.smoothing = v end
+function Frame:SetScale(x, y) self.scaleX, self.scaleY = x, y end
 function Frame:SetOffset(x, y) self.offsetX, self.offsetY = x, y end
 function Frame:SetSnapToPixelGrid(v) self.snapToPixelGrid = v end
 function Frame:SetTexelSnappingBias(v) self.texelSnappingBias = v end

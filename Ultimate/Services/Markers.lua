@@ -31,31 +31,36 @@ end
 
 local function opts() return ns.db.targeting.markers end
 
-local BOB_HEIGHT, BOB_TIME = 6, 0.6
-
 local function build()
   local f = CreateFrame("Frame", nil, UIParent)
   f:SetFrameStrata("HIGH")
   f.tex = f:CreateTexture(nil, "OVERLAY")
   f.tex:SetAllPoints()
-  -- Move in sub-pixel steps; snapped to the pixel grid a 6px bob is only 6 visible positions.
+  -- Move in sub-pixel steps; snapped to the pixel grid a short bob is only a few visible positions.
   if f.tex.SetSnapToPixelGrid then f.tex:SetSnapToPixelGrid(false) end
   if f.tex.SetTexelSnappingBias then f.tex:SetTexelSnappingBias(0) end
   -- Bob: Blizzard's bobbing-arrow pattern (Azerite power arrow) - a repeating eased move up,
   -- then the same move down, so the loop never turns around mid-animation.
   f.bob = f:CreateAnimationGroup()
   f.bob:SetLooping("REPEAT")
-  local up = f.bob:CreateAnimation("Translation")
-  up:SetOffset(0, BOB_HEIGHT); up:SetDuration(BOB_TIME); up:SetSmoothing("IN_OUT"); up:SetOrder(1)
-  local down = f.bob:CreateAnimation("Translation")
-  down:SetOffset(0, -BOB_HEIGHT); down:SetDuration(BOB_TIME); down:SetStartDelay(BOB_TIME)
-  down:SetSmoothing("IN_OUT"); down:SetOrder(1)
+  f.up = f.bob:CreateAnimation("Translation")
+  f.up:SetSmoothing("IN_OUT"); f.up:SetOrder(1)
+  f.down = f.bob:CreateAnimation("Translation")
+  f.down:SetSmoothing("IN_OUT"); f.down:SetOrder(1)
   -- Pulse: grow and shrink back.
   f.pulse = f:CreateAnimationGroup()
   f.pulse:SetLooping("BOUNCE")
-  local grow = f.pulse:CreateAnimation("Scale")
-  grow:SetScale(1.15, 1.15); grow:SetDuration(BOB_TIME); grow:SetSmoothing("IN_OUT")
+  f.grow = f.pulse:CreateAnimation("Scale")
+  f.grow:SetSmoothing("IN_OUT")
   return f
+end
+
+-- Set the animations' path and timing from the settings (only while stopped).
+local function configure(f, o)
+  local dist, time, scale = o.animDistance or 12, o.animTime or 0.8, o.pulseScale or 1.15
+  f.up:SetOffset(0, dist); f.up:SetDuration(time)
+  f.down:SetOffset(0, -dist); f.down:SetDuration(time); f.down:SetStartDelay(time)
+  f.grow:SetScale(scale, scale); f.grow:SetDuration(time)
 end
 
 local function stopAnims(f)
@@ -97,9 +102,12 @@ local function style(f, top, rare, level)
   -- style() runs on every scan (every 0.5s); restarting the loop each time made it jump back to
   -- its start mid-bounce. Only (re)start when the animation style changes.
   local group = (o.anim == "bob" and f.bob) or (o.anim == "pulse" and f.pulse) or nil
-  if f.animMode == o.anim and (group == nil or group:IsPlaying()) then return end
+  local mode = table.concat({ tostring(o.anim), tostring(o.animDistance), tostring(o.animTime),
+    tostring(o.pulseScale) }, "/")
+  if f.animMode == mode and (group == nil or group:IsPlaying()) then return end
   stopAnims(f)
-  f.animMode, f.anim = o.anim, group
+  configure(f, o)
+  f.animMode, f.anim = mode, group
   if group then group:Play() end
 end
 

@@ -112,3 +112,35 @@ describe("Targeting review fixes", function()
     T:UnregisterProvider("p")
   end)
 end)
+
+describe("Targeting scan report", function()
+  it("prints the key, the action-bar macro and what a press will run", function()
+    local lines = {}
+    local oldPrint = ns.Print
+    ns.Print = function(_, ...) lines[#lines + 1] = table.concat({ ... }, " ") end
+    GetBindingKey = function(cmd) if cmd == "CLICK UltimateTargetButton:LeftButton" then return "F" end end
+    GetMacroIndexByName = function(n) if n == "UltTarget" then return 3 end return 0 end
+    GetMacroInfo = function(i) if i == 3 then return "UltTarget", 134400, "/click UltimateTargetButton" end end
+    T.providers, T.providerOrder = {}, {}
+    T:RegisterProvider("p", function() return { cand("Kobold", 5, 3) } end)
+    ns:Fire("ULT_DEBUG_SCAN")
+    ns.Print = oldPrint
+    local all = table.concat(lines, "\n")
+    assertTrue(all:find(string.format(ns.L.SCAN_KEY, "F"), 1, true) ~= nil, "binding shown: " .. all)
+    assertTrue(all:find(string.format(ns.L.SCAN_MACRO, "/click UltimateTargetButton"), 1, true) ~= nil, "macro body shown")
+    assertTrue(all:find("/targetexact Kobold", 1, true) ~= nil, "armed macro text shown")
+    T:UnregisterProvider("p")
+  end)
+  it("says when the key is unbound and the macro is missing", function()
+    local lines = {}
+    local oldPrint = ns.Print
+    ns.Print = function(_, ...) lines[#lines + 1] = table.concat({ ... }, " ") end
+    GetBindingKey = function() return nil end
+    GetMacroIndexByName = function() return 0 end
+    ns:Fire("ULT_DEBUG_SCAN")
+    ns.Print = oldPrint
+    local all = table.concat(lines, "\n")
+    assertTrue(all:find(ns.L.SCAN_KEY_NONE, 1, true) ~= nil)
+    assertTrue(all:find(ns.L.SCAN_MACRO_NONE, 1, true) ~= nil)
+  end)
+end)

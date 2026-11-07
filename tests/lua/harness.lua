@@ -103,6 +103,10 @@ function Frame:CreateTexture(name) return setmetatable({ kind = "Texture", name 
 function Frame:CreateFontString(name) return setmetatable({ kind = "FontString", name = name, attrs = {}, events = {}, scripts = {}, shown = true, text = "" }, Frame) end
 function Frame:CreateAnimationGroup() return setmetatable({ kind = "AnimGroup", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
 function Frame:CreateAnimation() return setmetatable({ kind = "Anim", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
+-- Animation groups: track playing state and how often they were (re)started.
+function Frame:Play() self.playing = true; self.plays = (self.plays or 0) + 1 end
+function Frame:Stop() self.playing = false end
+function Frame:IsPlaying() return self.playing == true end
 function Frame:SetText(t) self.text = t end
 function Frame:SetTexture(t) self.texture = t end
 function Frame:GetTexture() return self.texture end

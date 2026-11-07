@@ -33,3 +33,5 @@ Services\Markers.lua
 Services\Sounds.lua
 Services\Alerts.lua
 Modules\QuestTargeting.lua
+Modules\RareScanner.lua
+Modules\QuestItems.lua

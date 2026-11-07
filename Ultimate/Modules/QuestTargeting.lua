@@ -26,7 +26,7 @@ local function tooltipFor(quests)
   return function(tt)
     for _, q in ipairs(quests) do
       tt:AddLine(q.title, 1, 0.82, 0)
-      tt:AddLine("  " .. (q.text or ""), 1, 1, 1)
+      tt:AddLine("  " .. (q.party and (q.party .. ": ") or "") .. (q.text or ""), 1, 1, 1)
     end
   end
 end
@@ -172,6 +172,7 @@ QT.def = ns.Modules:Register({
       levelSounds = { enabled = false, easy = "questadded", dangerous = "alarm" } },
     prompts = { enemyPlates = true },
     tooltipLearning = true,
+    partyNeeds = true,
     pinned = {},
     ignored = {},
   },
@@ -218,6 +219,7 @@ function QT.def.BuildSettings(ctx)
 
   ctx:Header(L.SECTION_MISC)
   ctx:Checkbox("questTargeting.tooltipLearning", L.TOOLTIP_LEARNING, L.TOOLTIP_LEARNING_TIP)
+  ctx:Checkbox("questTargeting.partyNeeds", L.PARTY_NEEDS, L.PARTY_NEEDS_TIP)
   ctx:Checkbox("questTargeting.prompts.enemyPlates", L.PLATES_PROMPT_SETTING)
   ctx:Button(L.ENEMY_PLATES, L.TURN_ON, function()
     ns.Combat:Run("cvar.plates", function() SetCVar("nameplateShowEnemies", "1") end)

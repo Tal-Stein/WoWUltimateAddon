@@ -139,6 +139,38 @@ local function indexQuest(quest)
   end
 end
 
+-- Objectives party members still need (via Questie's shared progress). My own unfinished
+-- objective for the same quest step wins; one entry per quest step and mob.
+local function indexParty()
+  if not (ns.PartyNeeds and ns.PartyNeeds.Enabled() and db()) then return end
+  for _, n in ipairs(ns.PartyNeeds:Needs()) do
+    local npcs = n.kind == "monster" and { n.id } or droppers(n.id)
+    local label = dbGet(n.kind == "monster" and "Npc" or "Item", n.id, "name")
+    local own = QI.quests[n.questID]
+    local title = own and own.title or dbGet("Quest", n.questID, "name")
+    if title then
+      for _, npcId in ipairs(npcs) do
+        local entry = QI.byNpc[npcId]
+        if not entry then
+          local name = dbGet("Npc", npcId, "name")
+          entry = { name = name, npcIds = { [npcId] = true }, quests = {} }
+          QI.byNpc[npcId] = entry
+          if name and not QI.byName[name] then QI.byName[name] = entry end
+        end
+        local dup = false
+        for _, q in ipairs(entry.quests) do
+          if q.questID == n.questID and q.objIndex == n.objIndex then dup = true; break end
+        end
+        if not dup then
+          entry.quests[#entry.quests + 1] = { questID = n.questID, title = title, objIndex = n.objIndex,
+            text = string.format("%s: %d/%d", label or "?", n.have, n.need),
+            have = n.have, need = n.need, party = n.player }
+        end
+      end
+    end
+  end
+end
+
 local function learnedEntry(name, quest)
   local entry = { name = name, npcIds = {}, quests = {}, learned = true }
   for i, o in ipairs(quest.objectives) do
@@ -155,6 +187,7 @@ function QI:Rebuild()
   self.byNpc, self.byName = {}, {}
   self.quests = readLog()
   for _, quest in pairs(self.quests) do indexQuest(quest) end
+  indexParty()
   -- Re-apply tooltip-learned names for quests that are still open with unfinished objectives.
   for name, questID in pairs(self.learned) do
     local quest = self.quests[questID]

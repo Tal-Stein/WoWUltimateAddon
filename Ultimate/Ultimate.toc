@@ -25,3 +25,8 @@ Core\DB.lua
 Core\Modules.lua
 Core\Slash.lua
 Data\QuestIndex.lua
+Services\Nameplates.lua
+Services\UIUtil.lua
+Services\Targeting.lua
+Services\TargetBar.lua
+Services\Markers.lua

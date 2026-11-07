@@ -147,6 +147,9 @@ local function buildTargeting(ctx)
     { value = "difficulty", label = L.COLOR_DIFFICULTY }, { value = "gold", label = L.COLOR_GOLD } })
   ctx:Dropdown("targeting.markers.anim", L.MARKER_ANIM, {
     { value = "bob", label = L.ANIM_BOB }, { value = "pulse", label = L.ANIM_PULSE }, { value = "none", label = L.NONE } })
+  ctx:Slider("targeting.markers.animDistance", L.MARKER_ANIM_DISTANCE, 2, 30, 1, fmtInt, L.MARKER_ANIM_DISTANCE_TIP)
+  ctx:Slider("targeting.markers.animTime", L.MARKER_ANIM_TIME, 0.2, 2, 0.1, fmtSeconds, L.MARKER_ANIM_TIME_TIP)
+  ctx:Slider("targeting.markers.pulseScale", L.MARKER_PULSE_SCALE, 1.05, 1.5, 0.05, fmtPercent, L.MARKER_PULSE_SCALE_TIP)
   ctx:Checkbox("targeting.markers.topOnly", L.MARKER_TOP_ONLY, L.MARKER_TOP_ONLY_TIP)
 end
 

@@ -80,4 +80,29 @@ describe("Markers", function()
     assertEq(tex.snapToPixelGrid, false)
     assertEq(tex.texelSnappingBias, 0)
   end)
+  it("bobs a longer path by default", function()
+    local m = ns.db.targeting.markers
+    assertEq(m.animDistance, 12); assertEq(m.animTime, 0.8); assertEq(m.pulseScale, 1.15)
+  end)
+  it("uses the animation settings and restarts when they change", function()
+    local m = ns.db.targeting.markers
+    m.anim = "bob"
+    fire()
+    local a = M:ForPlate(plateA)
+    local up, down = a.bob.anims[1], a.bob.anims[2]
+    assertEq(up.offsetY, 12); assertEq(down.offsetY, -12)
+    assertEq(up.duration, 0.8); assertEq(down.startDelay, 0.8)
+    m.animDistance, m.animTime = 20, 1.2
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.markers.animDistance")
+    fire()
+    a = M:ForPlate(plateA)
+    up, down = a.bob.anims[1], a.bob.anims[2]
+    assertEq(up.offsetY, 20); assertEq(down.offsetY, -20)
+    assertEq(up.duration, 1.2); assertEq(down.duration, 1.2); assertEq(down.startDelay, 1.2)
+    assertTrue(a.bob:IsPlaying())
+    m.anim, m.pulseScale = "pulse", 1.4
+    fire()
+    assertEq(a.pulse.anims[1].scaleX, 1.4); assertEq(a.pulse.anims[1].duration, 1.2)
+    m.anim, m.animDistance, m.animTime, m.pulseScale = "bob", 12, 0.8, 1.15
+  end)
 end)

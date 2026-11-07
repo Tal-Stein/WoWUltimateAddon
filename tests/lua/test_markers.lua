@@ -39,4 +39,27 @@ describe("Markers", function()
     assertEq(M:ActiveCount(), 0)
     ns.db.targeting.markers.enabled = true
   end)
+  it("keeps the animation running across scans instead of restarting it", function()
+    ns.db.targeting.markers.anim = "bob"
+    fire()
+    local a = M:ForPlate(plateA)
+    local before = a.anim.plays
+    assertTrue(a.anim:IsPlaying())
+    fire(); fire(); fire()
+    assertEq(M:ForPlate(plateA), a, "same marker frame")
+    assertEq(a.anim.plays, before, "not restarted on every scan")
+  end)
+  it("restarts the animation only when the style changes", function()
+    ns.db.targeting.markers.anim = "bob"
+    fire()
+    local a = M:ForPlate(plateA)
+    local before = a.anim.plays
+    ns.db.targeting.markers.anim = "pulse"
+    fire()
+    assertEq(a.anim.plays, before + 1)
+    ns.db.targeting.markers.anim = "none"
+    fire()
+    assertFalse(a.anim:IsPlaying())
+    ns.db.targeting.markers.anim = "bob"
+  end)
 end)

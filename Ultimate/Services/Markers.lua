@@ -57,6 +57,7 @@ local function release(f)
   f:Hide()
   f:ClearAllPoints()
   f.plate = nil
+  f.animMode = nil
   M.pool[#M.pool + 1] = f
 end
 
@@ -78,6 +79,10 @@ local function style(f, top, rare, level)
   end
   f.tex:SetVertexColor(c.r, c.g, c.b)
   f:SetAlpha(top and 1 or 0.8)
+  -- style() runs on every scan (every 0.5s); restarting the loop each time made it jump back to
+  -- its start mid-bounce. Only (re)start when the animation style changes.
+  if f.animMode == o.anim and (f.anim:IsPlaying() or (o.anim ~= "bob" and o.anim ~= "pulse")) then return end
+  f.animMode = o.anim
   f.anim:Stop()
   if o.anim == "bob" then
     f.move:SetOffset(0, 6); f.scale:SetScale(1, 1)

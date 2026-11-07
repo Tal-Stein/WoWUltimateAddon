@@ -17,6 +17,7 @@ local commands = {
     ns:Print(L.POSITIONS_RESET)
   end,
   scan = function() ns:Fire("ULT_DEBUG_SCAN") end,
+  list = function() ns:Fire("ULT_TOGGLE_TARGET_LIST") end,
   help = function() ns:Print(L.SLASH_HELP) end,
 }
 

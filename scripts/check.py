@@ -22,7 +22,7 @@ ADDON = ROOT / "Ultimate"
 # Globals the add-on is allowed to define.
 ALLOWED_GLOBALS = {
     "BINDING_HEADER_ULTIMATE", "Ultimate_OnCompartmentClick", "UltimateDB", "UltimateCharDB",
-    "SLASH_ULTIMATE1", "SLASH_ULTIMATE2", "Ultimate_Refresh",
+    "SLASH_ULTIMATE1", "SLASH_ULTIMATE2", "Ultimate_Refresh", "Ultimate_ToggleTargetList",
 }
 
 

@@ -183,6 +183,30 @@ function QI:ByName(name) return name and self.byName[name] or nil end
 function QI:QuestInfo(questID) return self.quests[questID] end
 function QI:Quests() return self.quests end
 
+-- Every indexed entry once (DB entries plus tooltip-learned ones).
+function QI:Entries()
+  local out, seen = {}, {}
+  for _, e in pairs(self.byNpc) do
+    if not seen[e] then seen[e] = true; out[#out + 1] = e end
+  end
+  for _, e in pairs(self.byName) do
+    if not seen[e] then seen[e] = true; out[#out + 1] = e end
+  end
+  return out
+end
+
+-- Level range across a set of NPC ids, from QuestieDB. Returns nil when unknown.
+function QI:NpcLevels(npcIds)
+  local lo, hi
+  for id in pairs(npcIds or {}) do
+    local a, b = dbGet("Npc", id, "minLevel"), dbGet("Npc", id, "maxLevel")
+    if type(a) == "number" and a > 0 then lo = lo and math.min(lo, a) or a end
+    if type(b) == "number" and b > 0 then hi = hi and math.max(hi, b) or b end
+  end
+  if lo and not hi then hi = lo elseif hi and not lo then lo = hi end
+  return lo, hi
+end
+
 function QI:QuestNpcNames(questID)
   local q = self.quests[questID]
   return q and q.npcNames or {}

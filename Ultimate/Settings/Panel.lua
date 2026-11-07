@@ -56,6 +56,9 @@ local function buildRoot(ctx)
       function(v) ns.Modules:SetEnabled(key, v) end)
   end
   ctx:Header(L.SECTION_GENERAL)
+  ctx:CheckboxFn("MINIMAP", L.MINIMAP_BUTTON, L.MINIMAP_BUTTON_TIP, true,
+    function() return not ns.db.core.minimap.hide end,
+    function(v) B.set("core.minimap.hide", not v) end)
   ctx:Checkbox("core.lockAll", L.LOCK_ALL, L.LOCK_ALL_TIP)
   ctx:Button(L.BAR_POSITIONS, L.RESET, function() ns:Fire("ULT_RESET_POSITIONS") end, L.BAR_POSITIONS_TIP)
   ctx:Slider("core.scanInterval", L.SCAN_INTERVAL, 0.2, 2, 0.1, fmtSeconds, L.SCAN_INTERVAL_TIP)

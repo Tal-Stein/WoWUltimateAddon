@@ -32,7 +32,6 @@ Services\Nameplates.lua
 Services\UIUtil.lua
 Services\Menu.lua
 Services\Targeting.lua
-Services\NameplateRange.lua
 Services\TargetBar.lua
 Services\Markers.lua
 Services\Sounds.lua

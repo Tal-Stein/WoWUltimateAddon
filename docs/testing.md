@@ -114,9 +114,3 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 ## Secret values (spec §13)
 - [ ] Out of combat, mob levels, classifications and tagged state read correctly.
       `/ult scan` shows levels rather than `??` for normal mobs.
-
-## Nameplate range
-- [ ] After `/reload`, `/dump GetCVar("nameplateMaxDistance")` shows 41 (or Ultimate printed that
-      the game caps it, and the number it printed).
-- [ ] Quest mobs at the new distance get a nameplate, a marker and a bar button.
-- [ ] Unticking "Set nameplate distance" puts back the value from before.

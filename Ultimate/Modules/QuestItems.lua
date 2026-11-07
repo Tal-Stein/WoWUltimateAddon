@@ -133,7 +133,9 @@ end)
 
 for i = 1, MAX_BUTTONS do
   -- Kept at the template's own size (see UI.NativeButtonSize); the bar is scaled instead.
-  local b = CreateFrame("Button", "UltimateQuestItem" .. i, frame, "SecureActionButtonTemplate, ActionButtonTemplate")
+  -- SecureActionButtonTemplate must come last: ActionButtonTemplate inherits FlyoutButtonTemplate,
+  -- whose OnClick (Flyout_OnClick) would otherwise replace the secure click handler.
+  local b = CreateFrame("Button", "UltimateQuestItem" .. i, frame, "ActionButtonTemplate, SecureActionButtonTemplate")
   b:RegisterForClicks("AnyUp", "AnyDown")
   b:RegisterForDrag("LeftButton")
   b:SetAttribute("type", "item")
@@ -287,4 +289,6 @@ function QIt.def.BuildSettings(ctx)
   ctx:Dropdown("questItems.orientation", L.ORIENTATION, P.ORIENTATIONS)
   ctx:Slider("questItems.scale", L.SCALE, 0.5, 2, 0.05, P.fmt.percent)
   ctx:Checkbox("questItems.locked", L.LOCK_BAR, L.LOCK_BAR_TIP)
+  ctx:Header(L.SECTION_KEYS)
+  for i = 1, 4 do ctx:Keybinding("CLICK UltimateQuestItem" .. i .. ":LeftButton", L.KEY_BINDING) end
 end

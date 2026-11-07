@@ -55,6 +55,15 @@ CreateSettingsListSectionHeaderInitializer = function(name) return initializer("
 CreateSettingsButtonInitializer = function(name, buttonText, onClick, tooltip)
   return initializer("button", { name = name, buttonText = buttonText, onClick = onClick })
 end
+-- Key bindings registered by Bindings.xml, in the order the client lists them.
+local BINDINGS = { "MOVEFORWARD", "HEADER_ULTIMATE", "CLICK UltimateTargetButton:LeftButton", "ULTIMATE_REFRESH",
+  "CLICK UltimateQuestItem1:LeftButton", "CLICK UltimateQuestItem2:LeftButton",
+  "CLICK UltimateQuestItem3:LeftButton", "CLICK UltimateQuestItem4:LeftButton" }
+GetNumBindings = function() return #BINDINGS end
+GetBinding = function(i) return BINDINGS[i], "ADDONS" end
+CreateKeybindingEntryInitializer = function(bindingIndex, search)
+  return initializer("keybinding", { bindingIndex = bindingIndex })
+end
 C_NamePlate = { GetNamePlates = function() return {} end, GetNamePlateForUnit = function() end }
 
 __boot(nil, {})
@@ -131,5 +140,32 @@ end)
 describe("Settings review fixes", function()
   it("does not offer a tagged-mob toggle that has no effect", function()
     assertNil(registered.settings["ULTIMATE_questTargeting_filters_hideTapped"])
+  end)
+end)
+
+describe("Key binding rows", function()
+  local function category(name)
+    for _, c in ipairs(registered.categories) do if c.name == name then return c end end
+  end
+  local function keyRows(cat)
+    local out = {}
+    for _, init in ipairs(cat.inits) do
+      if init.kind == "keybinding" then out[#out + 1] = BINDINGS[init.data.bindingIndex] end
+    end
+    return out
+  end
+  it("Targeting page has Blizzard's own key binding row for the target key", function()
+    local rows = keyRows(category(ns.L.TARGETING))
+    assertEq(rows, { "CLICK UltimateTargetButton:LeftButton", "ULTIMATE_REFRESH" })
+  end)
+  it("Quest Items page has a key row per bindable item button", function()
+    local rows = keyRows(category(ns.L.MODULE_QUEST_ITEMS))
+    assertEq(#rows, 4)
+    assertEq(rows[1], "CLICK UltimateQuestItem1:LeftButton")
+  end)
+  it("no longer offers the action-bar macro", function()
+    for _, init in ipairs(category(ns.L.TARGETING).inits) do
+      assertTrue(init.kind ~= "button" or init.data.name ~= "Action bar macro", "macro button removed")
+    end
   end)
 end)

@@ -222,3 +222,11 @@ describe("TargetBar portraits", function()
     ns.db.targeting.bar.portraits = true
   end)
 end)
+
+describe("UltimateTargetBarButton click handler", function()
+  it("a mouse click reaches the secure action, not the flyout handler", function()
+    for i = 1, 4 do
+      assertEq(_G["UltimateTargetBarButton" .. i].clickHandler, "secure", "SecureActionButtonTemplate must be applied last")
+    end
+  end)
+end)

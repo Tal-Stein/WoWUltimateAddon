@@ -121,6 +121,15 @@ function CreateFrame(kind, name, parent, template)
   local f = setmetatable({ kind = kind, name = name, parent = parent, template = template,
     attrs = {}, events = {}, scripts = {}, shown = true }, Frame)
   f.secure = template and tostring(template):find("Secure") ~= nil or false
+  -- Templates apply left to right; a later template's OnClick replaces an earlier one's, as in
+  -- the client. ActionButtonTemplate brings FlyoutButtonTemplate's OnClick (Flyout_OnClick).
+  for name in string.gmatch(tostring(template or ""), "[^,%s]+") do
+    if name == "SecureActionButtonTemplate" or name == "InsecureActionButtonTemplate" then
+      f.clickHandler = "secure"
+    elseif name == "ActionButtonTemplate" then
+      f.clickHandler = "flyout"
+    end
+  end
   table.insert(__frames, f)
   if name then _G[name] = f end
   return f

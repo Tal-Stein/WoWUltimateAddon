@@ -11,7 +11,7 @@ Requires **Questie**, including its **QuestieDB**.
 | Feature | What it does |
 |---|---|
 | **Quest Targeting** | Uses Questie's database and your quest log to find nearby mobs you need for quests, including mobs that drop quest items. Plays a sound when one comes into view (separate sounds for regular, elite, boss, or easy vs dangerous mobs). Marks them with a large animated icon. Ranks them by your chosen priorities. |
-| **Target key / bar** | Bind "Target next quest mob" (or use the `UltTarget` macro). One press targets the best quest mob; pressing again moves to the next one. A fixed, movable panel shows every quest mob name nearby, colored by difficulty, growing into rows when there are many. Click one to target it. Mobs tagged by someone else are skipped. |
+| **Target key / bar** | Bind "Target next quest mob" right in `/ult` → Targeting. One press targets the best quest mob; pressing again moves to the next one. A fixed, movable panel shows every quest mob name nearby, colored by difficulty, growing into rows when there are many. Click one to target it. Mobs tagged by someone else are skipped. |
 | **Minimap button** | Click opens settings, drag moves it around the minimap. It can be hidden in settings. |
 | **Rare Scanner** | Always-on alert for rare, rare-elite and world-boss mobs, plus your own watch list. Rares go to the front of the target bar. |
 | **Quest Items** | Buttons for usable quest items, shown only when relevant (or always). You can bind them to keys, drag them to action bars, and shift-click to pin. |

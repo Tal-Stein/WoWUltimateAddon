@@ -26,17 +26,15 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       It says "Quest database: Questie".
 - [ ] **Item quests** ("collect 8 Gold Dust"): the mobs that drop the item are listed.
       Mobs the database misses show up after their tooltip has been seen.
-- [ ] Bind Key Bindings → AddOns → "Target next quest mob". Pressing it targets the top quest
+- [ ] `/ult` → Targeting shows Blizzard's own key binding rows for "Target next quest mob"
+      and "Refresh quest targets". Click one, press a key, close the panel; the key survives
+      `/reload` and shows under Key Bindings → AddOns too. Pressing it targets the top quest
       mob nearby.
 - [ ] Pressing it again with another quest mob name nearby moves to the next name.
 - [ ] *Verify:* when several mobs share a name, does pressing again rotate among them?
       (spec §13)
 - [ ] In combat, while fighting a live enemy, the key doesn't swap targets ("Keep my target
       in combat").
-- [ ] "Create macro" makes an **UltTarget** general macro that works from an action bar. Its
-      body is two lines: `/click UltimateTargetButton LeftButton 1` and
-      `/click UltimateTargetButton LeftButton`. An older one-line UltTarget macro is upgraded
-      at login.
 - [ ] The target bar shows one button per quest mob name. The level is colored grey, green,
       yellow, orange or red, and hovering shows quest progress. Clicking targets.
 - [ ] The target bar has no frame, like the quest item bar. It stays on screen while enabled
@@ -44,8 +42,9 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       while unlocked; drag the bar by it. It stays put while locked or with "Lock all bars" on.
 - [ ] Each target button shows the mob's own portrait, with a small quest (or rare) badge in
       the top-right corner. "Show mob portraits" off gives the plain icons back.
-- [ ] `/ult scan` ends with "Target key: …", "UltTarget macro: …" and "A press runs:" followed
-      by the macro lines. They name a mob that is actually nearby.
+- [ ] `/ult scan` ends with "Target key: …" and "A press runs:" followed by the lines a press
+      runs. They name a mob that is actually nearby.
+- [ ] Left-clicking a target button targets that mob (the click reaches the secure action).
 - [ ] Right-clicking a target button, the title or "No targets nearby" opens a menu: Never
       target <name> (on a button), Horizontal/Vertical, Lock bar, Hide target bar, Settings.
       Right-click never targets.
@@ -85,7 +84,8 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       "Hide" turns off Quest Items, and a chat line says where to turn it back on.
 - [ ] Item icons, borders and cooldown spirals are centred in their buttons, and so are the
       target bar's.
-- [ ] Bind "Use quest item 1" and press it.
+- [ ] Left-clicking a quest item button uses the item. `/ult` → Quest Items has key rows for
+      items 1–4; bind "Use quest item 1" there and press it.
 - [ ] Cooldown spirals and counts update.
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match
       still works.

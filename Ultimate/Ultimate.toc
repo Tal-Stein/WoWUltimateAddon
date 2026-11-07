@@ -28,6 +28,7 @@ Core\DB.lua
 Core\Modules.lua
 Core\Slash.lua
 Data\QuestIndex.lua
+Data\PartyNeeds.lua
 Services\Nameplates.lua
 Services\UIUtil.lua
 Services\Menu.lua

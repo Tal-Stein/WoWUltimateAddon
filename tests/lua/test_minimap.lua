@@ -2,6 +2,7 @@ local ns = __ns
 local L = ns.L
 
 Minimap = CreateFrame("Frame", "Minimap", UIParent)
+AddonCompartmentFrame = CreateFrame("Frame", "AddonCompartmentFrame", UIParent)
 local opened = 0
 local tooltipLines = {}
 GameTooltip = CreateFrame("Frame", "GameTooltip", UIParent)
@@ -40,5 +41,11 @@ describe("Minimap button", function()
     ns.db.core.minimap.hide = false
     ns:Fire("ULT_SETTING_CHANGED", "core.minimap.hide")
     assertTrue(MB.button:IsShown())
+  end)
+  it("centers the icon and background on clients with the AddOns compartment", function()
+    local b = MB.button
+    assertEq(b.icon.point, { "CENTER" })
+    assertEq(b.background.point, { "CENTER" })
+    assertEq(b.border.point, { "TOPLEFT" })
   end)
 end)

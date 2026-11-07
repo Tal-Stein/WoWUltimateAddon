@@ -12,7 +12,7 @@ describe("Macro.build", function()
   end)
   it("adds the raid marker line", function()
     local text = Macro.build({ "A" }, 1, { stopInCombat = false, fallbacks = 2, marker = 8 })
-    assertEq(text, "/cleartarget [dead][help]\n/targetexact A\n/tm [exists,harm,nodead] 8")
+    assertEq(text, "/cleartarget [dead][help]\n/targetexact A\n/tm [exists,harm,nodead] !8")
   end)
   it("test_macro_budget_and_sanitise", function()
     local names = {}

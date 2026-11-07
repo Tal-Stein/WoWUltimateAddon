@@ -33,7 +33,10 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       (spec §13)
 - [ ] In combat, while fighting a live enemy, the key doesn't swap targets ("Keep my target
       in combat").
-- [ ] "Create macro" makes an **UltTarget** general macro that works from an action bar.
+- [ ] "Create macro" makes an **UltTarget** general macro that works from an action bar. Its
+      body is two lines: `/click UltimateTargetButton LeftButton 1` and
+      `/click UltimateTargetButton LeftButton`. An older one-line UltTarget macro is upgraded
+      at login.
 - [ ] The target bar shows one button per quest mob name. The level is colored grey, green,
       yellow, orange or red, and hovering shows quest progress. Clicking targets.
 - [ ] The target bar has no frame, like the quest item bar. It stays on screen while enabled

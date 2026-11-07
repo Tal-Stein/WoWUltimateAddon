@@ -47,3 +47,19 @@ describe("TargetBar", function()
     ns.db.targeting.bar.enabled = true
   end)
 end)
+
+describe("TargetBar review fixes", function()
+  it("skips relayout when the names are unchanged", function()
+    changed({ "A", "B" })
+    local before = #__attrLog
+    changed({ "A", "B" })
+    assertEq(#__attrLog, before, "no secure writes on an identical refresh")
+  end)
+  it("still relayouts after a setting change", function()
+    changed({ "A", "B" })
+    ns.db.targeting.bar.max = 1
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.bar.max")
+    assertFalse(UltimateTargetBarButton2:IsShown())
+    ns.db.targeting.bar.max = 6
+  end)
+end)

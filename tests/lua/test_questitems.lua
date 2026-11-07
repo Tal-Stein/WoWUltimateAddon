@@ -110,3 +110,25 @@ describe("QuestItems layout", function()
     assertTrue(UltimateQuestItem1.secure)
   end)
 end)
+
+describe("QuestItems review fixes", function()
+  it("shift-click pins exactly once per click (down+up)", function()
+    setup()
+    QIt.Update()
+    IsShiftKeyDown = function() return true end
+    local b = UltimateQuestItem1
+    local id = b.itemID
+    b.scripts.OnClick(b, "LeftButton", true)
+    b.scripts.OnClick(b, "LeftButton", false)
+    assertTrue(ns.db.questItems.pinned[id] == true, "pinned after one full click")
+    IsShiftKeyDown = function() return false end
+    ns.db.questItems.pinned[id] = nil
+  end)
+  it("disabling the module clears item attributes so bound keys do nothing", function()
+    setup()
+    QIt.Update()
+    ns.Modules:SetEnabled("questItems", false)
+    assertNil(UltimateQuestItem1:GetAttribute("item"))
+    ns.Modules:SetEnabled("questItems", true)
+  end)
+end)

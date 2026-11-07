@@ -18,7 +18,7 @@ ns.DB:RegisterDefaults("targeting", {
   markerSoloOnly = true,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
-  bar = { enabled = true, max = 6, orientation = "HORIZONTAL", scale = 1, locked = false, hideTaggedOnly = true },
+  bar = { enabled = true, max = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
   markers = { enabled = true, size = 40, offset = 10, colorMode = "difficulty", anim = "bob", topOnly = false },
 })
 
@@ -48,6 +48,7 @@ end
 
 function T:ApplyMacro()
   local text = self:BuildMacroText()
+  if text == self.armedText and not ns.Combat:IsPending("targeting.macro") then return end
   ns.Combat:Run("targeting.macro", function()
     button:SetAttribute("macrotext", text)
     T.armedText = text
@@ -116,7 +117,8 @@ function T:Refresh(force)
   self.ranked = ns.Ranking.rank(list, { rareFirst = o.rareFirst, criteria = o.ranking })
   self.byName = byName
   self.cursor:set(self.ranked)
-  if o.autoArm or force then self:ApplyMacro() end
+  -- With auto-arm off the key still never keeps targeting a name that is no longer a candidate.
+  if o.autoArm or force or #self.ranked == 0 then self:ApplyMacro() end
   ns:Fire("ULT_TARGETS_CHANGED", self.ranked, self.byName)
 end
 

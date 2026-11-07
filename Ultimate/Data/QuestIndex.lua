@@ -62,29 +62,25 @@ local function readLog()
   return quests
 end
 
-local function liveObjective(quest, idx, kind)
-  local o = quest.objectives[idx]
-  if o and o.type == kind then return idx, o end
-end
-
--- Find which live objectives a DB objective tuple refers to.
-local function matchObjectives(quest, kind, dbIndex, dbText)
+-- Find which live objectives a DB objective refers to. QuestieDB tuples carry no objective index
+-- (the third/fourth slot is an icon), so match by text: the DB objective text when present,
+-- else the NPC/item name, against the live objective text. Only if nothing matches, tie it to
+-- every objective of that type.
+local function matchObjectives(quest, kind, ...)
   local result = {}
-  if type(dbIndex) == "number" then
-    local idx, o = liveObjective(quest, dbIndex, kind)
-    if idx then result[1] = { idx, o }; return result end
-  end
-  local text = norm(dbText)
-  if text and text ~= "" then
-    for i, o in ipairs(quest.objectives) do
-      if o.type == kind and norm(o.text) and string.find(norm(o.text), text, 1, true) then
-        result[#result + 1] = { i, o }
+  for i = 1, select("#", ...) do
+    local needle = norm((select(i, ...)))
+    if needle and needle ~= "" then
+      for idx, o in ipairs(quest.objectives) do
+        if o.type == kind and norm(o.text) and string.find(norm(o.text), needle, 1, true) then
+          result[#result + 1] = { idx, o }
+        end
       end
+      if #result > 0 then return result end
     end
-    if #result > 0 then return result end
   end
-  for i, o in ipairs(quest.objectives) do
-    if o.type == kind then result[#result + 1] = { i, o } end
+  for idx, o in ipairs(quest.objectives) do
+    if o.type == kind then result[#result + 1] = { idx, o } end
   end
   return result
 end
@@ -125,16 +121,18 @@ local function indexQuest(quest)
   local objectives = dbGet("Quest", quest.questID, "objectives")
   if type(objectives) ~= "table" then return end
 
-  for _, t in ipairs(objectives[1] or {}) do -- creatures {npcId, text, idx}
-    for _, m in ipairs(matchObjectives(quest, "monster", t[3], t[2])) do addNpc(t[1], quest, m[1], m[2]) end
+  for _, t in ipairs(objectives[1] or {}) do -- creatures {npcId, text, icon}
+    for _, m in ipairs(matchObjectives(quest, "monster", t[2], dbGet("Npc", t[1], "name"))) do
+      addNpc(t[1], quest, m[1], m[2])
+    end
   end
-  for _, t in ipairs(objectives[5] or {}) do -- kill credit {npcIds, creditNpc, text, idx}
-    for _, m in ipairs(matchObjectives(quest, "monster", t[4], t[3])) do
+  for _, t in ipairs(objectives[5] or {}) do -- kill credit {npcIds, creditNpc, text, icon}
+    for _, m in ipairs(matchObjectives(quest, "monster", t[3], dbGet("Npc", t[2], "name"))) do
       for _, id in ipairs(t[1] or {}) do addNpc(id, quest, m[1], m[2]) end
     end
   end
-  for _, t in ipairs(objectives[3] or {}) do -- items {itemId, text, idx}
-    local matches = matchObjectives(quest, "item", t[3], t[2])
+  for _, t in ipairs(objectives[3] or {}) do -- items {itemId, text, icon}
+    local matches = matchObjectives(quest, "item", t[2], dbGet("Item", t[1], "name"))
     for _, npcId in ipairs(droppers(t[1])) do
       for _, m in ipairs(matches) do addNpc(npcId, quest, m[1], m[2]) end
     end

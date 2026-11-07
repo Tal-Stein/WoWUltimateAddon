@@ -131,3 +131,15 @@ describe("QuestTargeting disable", function()
     assertTrue(ns.Targeting.providers.quest ~= nil)
   end)
 end)
+
+describe("QuestTargeting review fixes", function()
+  it("tooltip learning still runs when alerts are off", function()
+    reset()
+    QI.quests = { [100] = { questID = 100, title = "Kobold Camp", objectives = {
+      { text = "Candles: 1/8", type = "item", finished = false, numFulfilled = 1, numRequired = 8 } } } }
+    ns.db.questTargeting.alerts.enabled = false
+    QT.OnMobAdded(mob({ npcId = 78, name = "Cave Rat" }))
+    ns.db.questTargeting.alerts.enabled = true
+    assertTrue(QI:ByName("Cave Rat") ~= nil)
+  end)
+end)

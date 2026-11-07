@@ -56,10 +56,28 @@ describe("Markers", function()
     local before = a.anim.plays
     ns.db.targeting.markers.anim = "pulse"
     fire()
-    assertEq(a.anim.plays, before + 1)
+    assertEq(a.anim, a.pulse, "pulse animation now")
+    assertTrue(a.pulse:IsPlaying() and not a.bob:IsPlaying())
     ns.db.targeting.markers.anim = "none"
     fire()
-    assertFalse(a.anim:IsPlaying())
+    assertFalse(a.bob:IsPlaying() or a.pulse:IsPlaying())
     ns.db.targeting.markers.anim = "bob"
+  end)
+  it("bobs like Blizzard's own bobbing arrow: a repeating eased move up, then down", function()
+    ns.db.targeting.markers.anim = "bob"
+    fire()
+    local bob = M:ForPlate(plateA).bob
+    assertEq(bob:GetLooping(), "REPEAT", "no BOUNCE turnaround")
+    local up, down = bob.anims[1], bob.anims[2]
+    assertEq(up.animType, "Translation"); assertEq(down.animType, "Translation")
+    assertTrue(up.offsetY > 0 and down.offsetY == -up.offsetY, "ends where it started")
+    assertEq(down.startDelay, up.duration, "down starts as up ends")
+    assertEq(up.smoothing, "IN_OUT"); assertEq(down.smoothing, "IN_OUT")
+  end)
+  it("draws the icon off the pixel grid so it moves in sub-pixel steps", function()
+    fire()
+    local tex = M:ForPlate(plateA).tex
+    assertEq(tex.snapToPixelGrid, false)
+    assertEq(tex.texelSnappingBias, 0)
   end)
 end)

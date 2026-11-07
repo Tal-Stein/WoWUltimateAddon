@@ -102,11 +102,20 @@ function Frame:GetParent() return self.parent end
 function Frame:CreateTexture(name) return setmetatable({ kind = "Texture", name = name, attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
 function Frame:CreateFontString(name) return setmetatable({ kind = "FontString", name = name, attrs = {}, events = {}, scripts = {}, shown = true, text = "" }, Frame) end
 function Frame:CreateAnimationGroup() return setmetatable({ kind = "AnimGroup", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
-function Frame:CreateAnimation() return setmetatable({ kind = "Anim", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
+function Frame:CreateAnimation(t) local a = setmetatable({ kind = "Anim", animType = t, attrs = {}, events = {}, scripts = {}, shown = true }, Frame)
+  self.anims = self.anims or {}; self.anims[#self.anims + 1] = a; return a end
 -- Animation groups: track playing state and how often they were (re)started.
 function Frame:Play() self.playing = true; self.plays = (self.plays or 0) + 1 end
 function Frame:Stop() self.playing = false end
 function Frame:IsPlaying() return self.playing == true end
+function Frame:SetLooping(v) self.looping = v end
+function Frame:GetLooping() return self.looping end
+function Frame:SetDuration(v) self.duration = v end
+function Frame:SetStartDelay(v) self.startDelay = v end
+function Frame:SetSmoothing(v) self.smoothing = v end
+function Frame:SetOffset(x, y) self.offsetX, self.offsetY = x, y end
+function Frame:SetSnapToPixelGrid(v) self.snapToPixelGrid = v end
+function Frame:SetTexelSnappingBias(v) self.texelSnappingBias = v end
 function Frame:SetText(t) self.text = t end
 function Frame:SetTexture(t) self.texture = t end
 function Frame:GetTexture() return self.texture end

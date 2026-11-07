@@ -31,20 +31,36 @@ end
 
 local function opts() return ns.db.targeting.markers end
 
+local BOB_HEIGHT, BOB_TIME = 6, 0.6
+
 local function build()
   local f = CreateFrame("Frame", nil, UIParent)
   f:SetFrameStrata("HIGH")
   f.tex = f:CreateTexture(nil, "OVERLAY")
   f.tex:SetAllPoints()
-  f.anim = f:CreateAnimationGroup()
-  f.anim:SetLooping("BOUNCE")
-  f.move = f.anim:CreateAnimation("Translation")
-  f.move:SetDuration(0.6)
-  f.move:SetSmoothing("IN_OUT")
-  f.scale = f.anim:CreateAnimation("Scale")
-  f.scale:SetDuration(0.6)
-  f.scale:SetSmoothing("IN_OUT")
+  -- Move in sub-pixel steps; snapped to the pixel grid a 6px bob is only 6 visible positions.
+  if f.tex.SetSnapToPixelGrid then f.tex:SetSnapToPixelGrid(false) end
+  if f.tex.SetTexelSnappingBias then f.tex:SetTexelSnappingBias(0) end
+  -- Bob: Blizzard's bobbing-arrow pattern (Azerite power arrow) - a repeating eased move up,
+  -- then the same move down, so the loop never turns around mid-animation.
+  f.bob = f:CreateAnimationGroup()
+  f.bob:SetLooping("REPEAT")
+  local up = f.bob:CreateAnimation("Translation")
+  up:SetOffset(0, BOB_HEIGHT); up:SetDuration(BOB_TIME); up:SetSmoothing("IN_OUT"); up:SetOrder(1)
+  local down = f.bob:CreateAnimation("Translation")
+  down:SetOffset(0, -BOB_HEIGHT); down:SetDuration(BOB_TIME); down:SetStartDelay(BOB_TIME)
+  down:SetSmoothing("IN_OUT"); down:SetOrder(1)
+  -- Pulse: grow and shrink back.
+  f.pulse = f:CreateAnimationGroup()
+  f.pulse:SetLooping("BOUNCE")
+  local grow = f.pulse:CreateAnimation("Scale")
+  grow:SetScale(1.15, 1.15); grow:SetDuration(BOB_TIME); grow:SetSmoothing("IN_OUT")
   return f
+end
+
+local function stopAnims(f)
+  f.bob:Stop(); f.pulse:Stop()
+  f.anim, f.animMode = nil, nil
 end
 
 local function acquire()
@@ -53,11 +69,10 @@ local function acquire()
 end
 
 local function release(f)
-  if f.anim then f.anim:Stop() end
+  stopAnims(f)
   f:Hide()
   f:ClearAllPoints()
   f.plate = nil
-  f.animMode = nil
   M.pool[#M.pool + 1] = f
 end
 
@@ -81,16 +96,11 @@ local function style(f, top, rare, level)
   f:SetAlpha(top and 1 or 0.8)
   -- style() runs on every scan (every 0.5s); restarting the loop each time made it jump back to
   -- its start mid-bounce. Only (re)start when the animation style changes.
-  if f.animMode == o.anim and (f.anim:IsPlaying() or (o.anim ~= "bob" and o.anim ~= "pulse")) then return end
-  f.animMode = o.anim
-  f.anim:Stop()
-  if o.anim == "bob" then
-    f.move:SetOffset(0, 6); f.scale:SetScale(1, 1)
-    f.anim:Play()
-  elseif o.anim == "pulse" then
-    f.move:SetOffset(0, 0); f.scale:SetScale(1.15, 1.15)
-    f.anim:Play()
-  end
+  local group = (o.anim == "bob" and f.bob) or (o.anim == "pulse" and f.pulse) or nil
+  if f.animMode == o.anim and (group == nil or group:IsPlaying()) then return end
+  stopAnims(f)
+  f.animMode, f.anim = o.anim, group
+  if group then group:Play() end
 end
 
 function M:Update(ranked, byName)

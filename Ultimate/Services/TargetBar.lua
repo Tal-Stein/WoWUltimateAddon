@@ -2,28 +2,49 @@ local ADDON, ns = ...
 local L = ns.L
 local UI = ns.UI
 
--- Target bar: one secure action-style button per ranked mob name. Clicking targets that name.
--- Layout and visibility only change out of combat (queued through ns.Combat).
+-- Target bar: a fixed, movable panel holding one secure action-style button per ranked mob
+-- name. Clicking a button targets that name. The panel stays up while enabled (saying when
+-- nothing is nearby) and grows into rows for many targets. Layout only changes out of combat
+-- (queued through ns.Combat).
 local Bar = { buttons = {}, names = {} }
 ns.TargetBar = Bar
 
-local MAX_BUTTONS = 12
-local SIZE, GAP = 36, 6
+local MAX_BUTTONS = 24
+local SIZE = 36 -- design size of a button; all spacing below is in the same units
+local LABEL_W, LABEL_H = 12, 14 -- extra cell width for name labels, label band under a button
+local GAP_X, GAP_Y = 4, 4
+local PAD, TITLE_H, MIN_W = 8, 22, 130
 local DEFAULT_POINT = { "CENTER", "CENTER", 0, -200 }
+local BACKDROP = {
+  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+  tile = true, tileSize = 16, edgeSize = 16,
+  insets = { left = 4, right = 4, top = 4, bottom = 4 },
+}
 
-local frame = CreateFrame("Frame", "UltimateTargetBar", UIParent)
-frame:SetSize(SIZE, SIZE)
+local frame = CreateFrame("Frame", "UltimateTargetBar", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+frame:SetSize(MIN_W, TITLE_H + SIZE + LABEL_H + PAD)
+if frame.SetBackdrop then
+  frame:SetBackdrop(BACKDROP)
+  frame:SetBackdropColor(0, 0, 0, 0.6)
+  local c = TOOLTIP_DEFAULT_COLOR
+  if c then frame:SetBackdropBorderColor(c.r, c.g, c.b) end
+end
 frame:Hide()
 Bar.frame = frame
 
+-- Title band inside the panel; it is also the drag handle.
 local handle = CreateFrame("Frame", nil, frame)
-handle:SetHeight(14)
-handle:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 2)
-handle:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 0, 2)
+handle:SetPoint("TOPLEFT", 0, 0)
+handle:SetPoint("TOPRIGHT", 0, 0)
+handle:SetHeight(TITLE_H)
 local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-title:SetPoint("LEFT")
+title:SetPoint("LEFT", PAD + 2, -1)
 title:SetText(L.TARGET_BAR_TITLE)
 Bar.title = title
+
+Bar.empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+Bar.empty:SetText(L.TARGET_BAR_EMPTY)
 
 local function opts() return ns.db.targeting.bar end
 local function locked() return opts().locked or ns.db.core.lockAll end
@@ -57,7 +78,7 @@ for i = 1, MAX_BUTTONS do
   b.level:SetPoint("TOPLEFT", 2, -2)
   b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.label:SetPoint("TOP", b, "BOTTOM", 0, -2)
-  b.label:SetWidth(SIZE + GAP * 2)
+  b.label:SetWidth(SIZE + LABEL_W)
   b.label:SetWordWrap(false)
   b.countText = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.countText:SetPoint("BOTTOMRIGHT", -2, 2)
@@ -104,29 +125,34 @@ function Bar:Layout(force)
   for i = 1, math.min(o.max or 6, MAX_BUTTONS) do
     if self.ranked[i] then names[#names + 1] = self.ranked[i] end
   end
-  local signature = table.concat(names, "") .. "|" .. tostring(o.enabled) .. tostring(o.orientation)
-    .. tostring(o.scale) .. tostring(locked())
+  local signature = table.concat(names, "\001") .. "|" .. tostring(o.enabled) .. tostring(o.orientation)
+    .. tostring(o.perRow) .. tostring(o.scale) .. tostring(locked())
   if not force and signature == self.signature then
     self:UpdateVisuals()
     return
   end
   self.signature = signature
+  -- Buttons keep the template's own size (see UI.NativeButtonSize); spacing scales with it and
+  -- the whole panel is scaled back to the design size.
   self.native = self.native or UI.NativeButtonSize(self.buttons[1], SIZE)
   local size = self.native
-  local gap = GAP * size / SIZE
+  local k = size / SIZE
+  local cellW, cellH = size + LABEL_W * k, size + LABEL_H * k
+  local grid = ns.Grid.layout(#names, {
+    perRow = o.perRow or 6, vertical = o.orientation == "VERTICAL",
+    cellW = cellW, cellH = cellH, gapX = GAP_X * k, gapY = GAP_Y * k,
+    pad = PAD * k, top = TITLE_H * k, minWidth = MIN_W * k,
+  })
+  self.grid = grid
   ns.Combat:Run("targetbar.layout", function()
-    local horizontal = o.orientation ~= "VERTICAL"
     for i, b in ipairs(Bar.buttons) do
       local name = names[i] and ns.Units.sanitizeName(names[i])
-      if name then
+      local cell = grid.cells[i]
+      if name and cell then
         b:SetAttribute("macrotext", "/cleartarget\n/targetexact " .. name)
         b:ClearAllPoints()
-        b.label:SetWidth(size + gap * 2)
-        if horizontal then
-          b:SetPoint("LEFT", frame, "LEFT", (i - 1) * (size + gap * 2), 0)
-        else
-          b:SetPoint("TOP", frame, "TOP", 0, -(i - 1) * (size + gap * 3))
-        end
+        b:SetPoint("TOPLEFT", frame, "TOPLEFT", cell.x + (cellW - size) / 2, cell.y)
+        b.label:SetWidth(cellW)
         b.candidateName = names[i]
         b:Show()
       else
@@ -134,17 +160,15 @@ function Bar:Layout(force)
         b:Hide()
       end
     end
-    Bar.barScale = (o.scale or 1) * SIZE / size
+    handle:SetHeight(TITLE_H * k)
+    Bar.empty:ClearAllPoints()
+    Bar.empty:SetPoint("CENTER", frame, "TOPLEFT", grid.width / 2, -(TITLE_H * k + cellH / 2 - 2 * k))
+    Bar.empty:SetShown(#names == 0)
+    frame:SetSize(grid.width, grid.height)
+    Bar.barScale = (o.scale or 1) / k
     frame:SetScale(Bar.barScale)
-    local n = math.max(#names, 1)
-    if horizontal then
-      frame:SetSize(n * size + (n - 1) * gap * 2, size)
-    else
-      frame:SetSize(size, n * size + (n - 1) * gap * 3)
-    end
     place()
-    frame:SetShown(o.enabled and #names > 0)
-    handle:SetShown(not locked())
+    frame:SetShown(o.enabled and true or false)
     Bar:UpdateVisuals()
   end)
   self:UpdateVisuals()
@@ -166,4 +190,10 @@ ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
     Bar.ranked = Bar.ranked or {}
     Bar:Layout(true)
   end
+end)
+
+-- Put the (empty) panel up at login rather than waiting for the first target.
+ns:On("ULT_MODULES_STARTED", Bar, function()
+  Bar.ranked = Bar.ranked or {}
+  Bar:Layout(true)
 end)

@@ -36,8 +36,12 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] "Create macro" makes an **UltTarget** general macro that works from an action bar.
 - [ ] The target bar shows one button per quest mob name. The level is colored grey, green,
       yellow, orange or red, and hovering shows quest progress. Clicking targets.
-- [ ] The bar can be dragged while unlocked, and stays put while locked or with "Lock all
-      bars" on.
+- [ ] The target bar is a fixed panel titled "Ultimate Targets". It stays on screen while
+      enabled and shows "No targets nearby" when empty. Drag it by its title while unlocked.
+      It stays put while locked or with "Lock all bars" on.
+- [ ] With many quest mobs (set "Maximum buttons" to 24), the panel grows into rows of
+      "Buttons per row". Buttons and name labels line up in even columns inside the frame,
+      including in the vertical orientation.
 - [ ] Overhead markers appear above quest mobs, bigger above the top one. Size, height, color
       and animation settings apply. *Verify* which atlas art Forever shows (spec §13).
 - [ ] Mobs tagged by someone else get no marker and no alert, and the key skips their name

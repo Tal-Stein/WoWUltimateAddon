@@ -18,7 +18,7 @@ ns.DB:RegisterDefaults("targeting", {
   markerSoloOnly = true,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
-  bar = { enabled = true, max = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
+  bar = { enabled = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
   markers = { enabled = true, size = 40, offset = 10, colorMode = "difficulty", anim = "bob", topOnly = false },
 })
 

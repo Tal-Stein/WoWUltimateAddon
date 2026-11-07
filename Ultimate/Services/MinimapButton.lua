@@ -2,7 +2,7 @@ local ADDON, ns = ...
 local L = ns.L
 
 -- Round minimap button in Blizzard's tracking-button style (same art LibDBIcon buttons use).
--- Click: settings. Drag: move around the edge.
+-- Click: settings. Right-click: menu. Drag: move around the edge.
 local MB = {}
 ns.MinimapButton = MB
 
@@ -34,8 +34,18 @@ local function onUpdateDrag(self)
   MB:Place()
 end
 
-local function onClick()
-  if ns.OpenSettings then ns.OpenSettings() end
+local function onClick(self, button)
+  if button == "RightButton" then
+    ns.Menu.Show(self, {
+      title = L.ADDON_TITLE,
+      hide = { label = L.MINIMAP_MENU_HIDE, fn = function()
+        ns.Menu.Set("core.minimap.hide", true)
+        ns:Print(L.MINIMAP_HIDDEN)
+      end },
+    })
+  elseif ns.OpenSettings then
+    ns.OpenSettings()
+  end
 end
 
 local function onEnter(self)
@@ -43,6 +53,7 @@ local function onEnter(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:SetText(L.ADDON_TITLE)
   GameTooltip:AddLine(L.MINIMAP_CLICK, 1, 1, 1)
+  GameTooltip:AddLine(L.MINIMAP_RIGHT_CLICK, 1, 1, 1)
   GameTooltip:Show()
 end
 

@@ -114,11 +114,71 @@ describe("TargetBar panel", function()
     ns.db.targeting.bar.perRow = 6
     ns.db.targeting.bar.max = 6
   end)
-  it("keeps its title inside the panel even when locked", function()
+end)
+
+describe("TargetBar look and right-click menu", function()
+  local L = ns.L
+  it("is frameless like the quest item bar", function()
+    assertNil(Bar.frame.template, "no backdrop template")
+  end)
+  it("shows its title only while unlocked", function()
     ns.db.targeting.bar.locked = true
     ns:Fire("ULT_SETTING_CHANGED", "targeting.bar.locked")
-    assertTrue(Bar.title:IsShown())
-    assertEq(Bar.title:GetText(), ns.L.TARGET_BAR_TITLE)
+    assertFalse(Bar.handle:IsShown())
     ns.db.targeting.bar.locked = false
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.bar.locked")
+    assertTrue(Bar.handle:IsShown())
+  end)
+  it("right-click never targets", function()
+    local b = UltimateTargetBarButton1
+    assertEq(b:GetAttribute("type2"), "macro")
+    assertEq(b:GetAttribute("macrotext2"), "")
+  end)
+  it("right-click on a button opens the menu once, with the mob's own entry", function()
+    changed({ "Kobold" })
+    __menu = nil
+    local b = UltimateTargetBarButton1
+    b:GetScript("OnClick")(b, "RightButton", true)
+    assertNil(__menu, "nothing on the down stroke")
+    b:GetScript("OnClick")(b, "RightButton", false)
+    assertTrue(__menu ~= nil and __menu.owner == b)
+    assertEq(__menu.root.entries[1].text, L.TARGET_BAR_TITLE)
+    local never = __menuEntry(string.format(L.TARGET_MENU_NEVER, "Kobold"))
+    assertTrue(never ~= nil)
+    never.a()
+    assertTrue(ns.db.questTargeting.filters.exclude.Kobold)
+    ns.db.questTargeting.filters.exclude.Kobold = nil
+  end)
+  it("the title and the empty message open the menu too", function()
+    __menu = nil
+    Bar.handle:GetScript("OnMouseUp")(Bar.handle, "RightButton")
+    assertTrue(__menu ~= nil)
+    assertNil(__menuEntry(string.format(L.TARGET_MENU_NEVER, "Kobold")))
+    __menu = nil
+    Bar.emptyArea:GetScript("OnMouseUp")(Bar.emptyArea, "RightButton")
+    assertTrue(__menu ~= nil)
+  end)
+  it("offers lock, orientation, hide and settings", function()
+    Bar.ShowMenu(Bar.handle)
+    local lock = __menuEntry(L.LOCK_BAR)
+    lock.b()
+    assertTrue(ns.db.targeting.bar.locked)
+    ns.db.targeting.bar.locked = false
+    local vertical = __menuEntry(L.VERTICAL)
+    vertical.b(vertical.c)
+    assertEq(ns.db.targeting.bar.orientation, "VERTICAL")
+    ns.db.targeting.bar.orientation = "HORIZONTAL"
+    local opened = false
+    ns.OpenSettings = function() opened = true end
+    __menuEntry(L.OPEN_SETTINGS).a()
+    assertTrue(opened)
+    __inCombat = true
+    __menuEntry(L.TARGET_MENU_HIDE).a()
+    assertFalse(ns.db.targeting.bar.enabled)
+    __inCombat = false
+    ns.Combat:Flush()
+    assertFalse(UltimateTargetBar:IsShown())
+    ns.db.targeting.bar.enabled = true
+    ns:Fire("ULT_SETTING_CHANGED", "targeting.bar.enabled")
   end)
 end)

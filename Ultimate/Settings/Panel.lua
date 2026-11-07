@@ -67,12 +67,12 @@ local function buildRoot(ctx)
   ctx:DropdownFn("SCOPE", L.SCOPE, L.SCOPE_TIP, function() return scopes end,
     function() return ns.global.scope == "account" and 2 or 1 end,
     function(i)
-      local v = scopes[i] and scopes[i].value or "char"
+      local v = scopes[i] and scopes[i].value or "account"
       if v ~= ns.global.scope then
         ns.global.scope = v
         if StaticPopup_Show then StaticPopup_Show("ULTIMATE_RELOAD") end
       end
-    end, 1)
+    end, 2)
 end
 
 local function rankSlot(ctx, i)

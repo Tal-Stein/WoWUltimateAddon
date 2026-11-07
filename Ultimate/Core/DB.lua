@@ -1,8 +1,8 @@
 local ADDON, ns = ...
 
 -- SavedVariables: UltimateDB (account) and UltimateCharDB (character).
--- The active profile (ns.db) is the character table by default, or UltimateDB.profile when
--- the owner switches scope to "account" (takes effect after /reload).
+-- The active profile (ns.db) is UltimateDB.profile (account-wide, the default) or the character
+-- table when the owner switches scope to "char" (takes effect after /reload).
 local DB = { defaults = {} }
 ns.DB = DB
 
@@ -13,6 +13,9 @@ DB.defaults.core = {
   minimap = { hide = false, angle = 200 },
 }
 DB.defaults.modules = {}
+
+-- Character facts kept in UltimateCharDB whatever the profile scope.
+local PER_CHARACTER = { focusedChatState = true }
 
 function DB:RegisterDefaults(path, defaults)
   self.defaults[path] = defaults
@@ -26,7 +29,19 @@ function DB:Load()
   UltimateDB = UltimateDB or {}
   UltimateCharDB = UltimateCharDB or {}
   local global = UltimateDB
-  if global.scope ~= "account" then global.scope = "char" end
+  -- Version 2: account-wide is the default. Profiles from before that move once to account-wide;
+  -- the shared profile starts from this character's settings when it doesn't exist yet.
+  if (global.scopeVersion or 1) < 2 then
+    if global.scope ~= "account" and next(global.profile or {}) == nil then
+      global.profile = {}
+      for k, v in pairs(UltimateCharDB) do
+        if not PER_CHARACTER[k] then global.profile[k] = ns.Tables.copy(v) end
+      end
+    end
+    global.scope = "account"
+    global.scopeVersion = 2
+  end
+  if global.scope ~= "char" then global.scope = "account" end
   local profile
   if global.scope == "account" then
     global.profile = global.profile or {}

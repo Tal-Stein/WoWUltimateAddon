@@ -2,10 +2,10 @@ local ADDON, ns = ...
 local L = ns.L
 local UI = ns.UI
 
--- Target bar: a fixed, movable panel holding one secure action-style button per ranked mob
--- name. Clicking a button targets that name. The panel stays up while enabled (saying when
--- nothing is nearby) and grows into rows for many targets. Layout only changes out of combat
--- (queued through ns.Combat).
+-- Target bar: a fixed, movable, frameless bar (same look as the quest item bar) holding one
+-- secure action-style button per ranked mob name. Clicking a button targets that name; right-click
+-- opens the shared menu. It stays up while enabled (saying when nothing is nearby) and grows into
+-- rows for many targets. Layout only changes out of combat (queued through ns.Combat).
 local Bar = { buttons = {}, names = {} }
 ns.TargetBar = Bar
 
@@ -13,37 +13,31 @@ local MAX_BUTTONS = 24
 local SIZE = 36 -- design size of a button; all spacing below is in the same units
 local LABEL_W, LABEL_H = 12, 14 -- extra cell width for name labels, label band under a button
 local GAP_X, GAP_Y = 4, 4
-local PAD, TITLE_H, MIN_W = 8, 22, 130
 local DEFAULT_POINT = { "CENTER", "CENTER", 0, -200 }
-local BACKDROP = {
-  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  tile = true, tileSize = 16, edgeSize = 16,
-  insets = { left = 4, right = 4, top = 4, bottom = 4 },
-}
 
-local frame = CreateFrame("Frame", "UltimateTargetBar", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-frame:SetSize(MIN_W, TITLE_H + SIZE + LABEL_H + PAD)
-if frame.SetBackdrop then
-  frame:SetBackdrop(BACKDROP)
-  frame:SetBackdropColor(0, 0, 0, 0.6)
-  local c = TOOLTIP_DEFAULT_COLOR
-  if c then frame:SetBackdropBorderColor(c.r, c.g, c.b) end
-end
+local frame = CreateFrame("Frame", "UltimateTargetBar", UIParent)
+frame:SetSize(SIZE + LABEL_W, SIZE + LABEL_H)
 frame:Hide()
 Bar.frame = frame
 
--- Title band inside the panel; it is also the drag handle.
+-- Title strip above the bar, shown while unlocked; it is the drag handle.
 local handle = CreateFrame("Frame", nil, frame)
-handle:SetPoint("TOPLEFT", 0, 0)
-handle:SetPoint("TOPRIGHT", 0, 0)
-handle:SetHeight(TITLE_H)
-local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-title:SetPoint("LEFT", PAD + 2, -1)
+handle:SetHeight(16)
+handle:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 2)
+handle:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 0, 2)
+local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+title:SetPoint("LEFT")
 title:SetText(L.TARGET_BAR_TITLE)
-Bar.title = title
+Bar.title, Bar.handle = title, handle
 
-Bar.empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+-- Shown in place of the buttons when nothing is nearby; also takes the right-click.
+local emptyArea = CreateFrame("Frame", nil, frame)
+emptyArea:SetPoint("TOPLEFT")
+emptyArea:EnableMouse(true)
+Bar.emptyArea = emptyArea
+Bar.empty = emptyArea:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+Bar.empty:SetPoint("LEFT", 2, 0)
+Bar.empty:SetJustifyH("LEFT")
 Bar.empty:SetText(L.TARGET_BAR_EMPTY)
 
 local function opts() return ns.db.targeting.bar end
@@ -68,12 +62,48 @@ end
 
 local function onLeave() if GameTooltip then GameTooltip:Hide() end end
 
+-- Right-click menu (shared ns.Menu). On a mob button it also offers "Never target <name>".
+function Bar.ShowMenu(owner)
+  local name = owner and owner.candidateName
+  ns.Menu.Show(owner, {
+    title = L.TARGET_BAR_TITLE,
+    items = function(root)
+      if name then
+        root:CreateButton(string.format(L.TARGET_MENU_NEVER, name), function()
+          ns.db.questTargeting.filters.exclude[name] = true
+          ns:Fire("ULT_SETTING_CHANGED", "questTargeting.filters.exclude")
+          ns.Targeting:RequestRefresh()
+        end)
+      end
+      local function isOrientation(v) return opts().orientation == v end
+      local function setOrientation(v) ns.Menu.Set("targeting.bar.orientation", v) end
+      root:CreateRadio(L.HORIZONTAL, isOrientation, setOrientation, "HORIZONTAL")
+      root:CreateRadio(L.VERTICAL, isOrientation, setOrientation, "VERTICAL")
+    end,
+    lock = { get = function() return opts().locked end, set = function(v) ns.Menu.Set("targeting.bar.locked", v) end },
+    hide = { label = L.TARGET_MENU_HIDE, fn = function()
+      ns.Menu.Set("targeting.bar.enabled", false)
+      ns:Print(L.TARGET_BAR_HIDDEN)
+    end },
+  })
+end
+
+local function onMouseUp(self, button) if button == "RightButton" then Bar.ShowMenu(self) end end
+handle:SetScript("OnMouseUp", onMouseUp)
+emptyArea:SetScript("OnMouseUp", onMouseUp)
+
 for i = 1, MAX_BUTTONS do
   -- Kept at the template's own size (see UI.NativeButtonSize); the bar is scaled instead.
   local b = CreateFrame("Button", "UltimateTargetBarButton" .. i, frame, "SecureActionButtonTemplate, ActionButtonTemplate")
   b:RegisterForClicks("AnyUp", "AnyDown")
   b:SetAttribute("type", "macro")
   b:SetAttribute("useOnKeyDown", false)
+  -- Right-click opens the menu instead of targeting.
+  b:SetAttribute("type2", "macro")
+  b:SetAttribute("macrotext2", "")
+  b:HookScript("OnClick", function(self, button, down)
+    if button == "RightButton" and not down then Bar.ShowMenu(self) end
+  end)
   b.level = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.level:SetPoint("TOPLEFT", 2, -2)
   b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -141,7 +171,7 @@ function Bar:Layout(force)
   local grid = ns.Grid.layout(#names, {
     perRow = o.perRow or 6, vertical = o.orientation == "VERTICAL",
     cellW = cellW, cellH = cellH, gapX = GAP_X * k, gapY = GAP_Y * k,
-    pad = PAD * k, top = TITLE_H * k, minWidth = MIN_W * k,
+    pad = 0, top = 0, minWidth = 0,
   })
   self.grid = grid
   ns.Combat:Run("targetbar.layout", function()
@@ -160,10 +190,10 @@ function Bar:Layout(force)
         b:Hide()
       end
     end
-    handle:SetHeight(TITLE_H * k)
-    Bar.empty:ClearAllPoints()
-    Bar.empty:SetPoint("CENTER", frame, "TOPLEFT", grid.width / 2, -(TITLE_H * k + cellH / 2 - 2 * k))
+    emptyArea:SetSize(cellW * 3, cellH / 2)
+    emptyArea:SetShown(#names == 0)
     Bar.empty:SetShown(#names == 0)
+    handle:SetShown(not locked())
     frame:SetSize(grid.width, grid.height)
     Bar.barScale = (o.scale or 1) / k
     frame:SetScale(Bar.barScale)

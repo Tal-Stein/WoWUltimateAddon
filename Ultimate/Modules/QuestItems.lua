@@ -76,11 +76,11 @@ local frame = CreateFrame("Frame", "UltimateQuestItemBar", UIParent)
 frame:SetSize(SIZE, SIZE)
 frame:Hide()
 local handle = CreateFrame("Frame", nil, frame)
-handle:SetHeight(14)
+handle:SetHeight(16)
 handle:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 2)
 handle:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 0, 2)
 QIt.frame, QIt.handle = frame, handle
-local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+local title = handle:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 title:SetPoint("LEFT")
 title:SetText(L.QUEST_ITEM_BAR_TITLE)
 
@@ -99,43 +99,32 @@ local function onEnter(self)
   GameTooltip:Show()
 end
 
--- Right-click menu (Blizzard's context menu). `owner` is an item button or the title strip;
--- the pin entry only appears for an item button.
+-- Right-click menu (shared ns.Menu). `owner` is an item button or the title strip; the pin entry
+-- only appears for an item button.
 local function hideBar()
   ns.Modules:SetEnabled("questItems", false)
   ns:Print(L.ITEM_BAR_HIDDEN)
 end
 
-local function setOpt(key, value)
-  o()[key] = value
-  ns:Fire("ULT_SETTING_CHANGED", "questItems." .. key)
-end
-
 function QIt.ShowMenu(owner)
-  if not (MenuUtil and MenuUtil.CreateContextMenu) then
-    if ns.OpenSettings then ns.OpenSettings() end
-    return
-  end
-  MenuUtil.CreateContextMenu(owner, function(_, root)
-    root:CreateTitle(L.MODULE_QUEST_ITEMS)
-    local itemID = owner and owner.itemID
-    if itemID then
-      root:CreateCheckbox(L.ITEM_MENU_PIN, function() return o().pinned[itemID] == true end, function()
-        o().pinned[itemID] = (not o().pinned[itemID]) or nil
-        QIt.Update()
-      end)
-    end
-    root:CreateCheckbox(L.LOCK_BAR, function() return o().locked == true end,
-      function() setOpt("locked", not o().locked) end)
-    root:CreateDivider()
-    local function isMode(v) return o().mode == v end
-    local function setMode(v) setOpt("mode", v) end
-    root:CreateRadio(L.ITEM_MODE_RELEVANT, isMode, setMode, "relevant")
-    root:CreateRadio(L.ITEM_MODE_ALWAYS, isMode, setMode, "always")
-    root:CreateDivider()
-    root:CreateButton(L.ITEM_MENU_HIDE, hideBar)
-    root:CreateButton(L.OPEN_SETTINGS, function() if ns.OpenSettings then ns.OpenSettings() end end)
-  end)
+  local itemID = owner and owner.itemID
+  ns.Menu.Show(owner, {
+    title = L.MODULE_QUEST_ITEMS,
+    items = function(root)
+      if itemID then
+        root:CreateCheckbox(L.ITEM_MENU_PIN, function() return o().pinned[itemID] == true end, function()
+          o().pinned[itemID] = (not o().pinned[itemID]) or nil
+          QIt.Update()
+        end)
+      end
+      local function isMode(v) return o().mode == v end
+      local function setMode(v) ns.Menu.Set("questItems.mode", v) end
+      root:CreateRadio(L.ITEM_MODE_RELEVANT, isMode, setMode, "relevant")
+      root:CreateRadio(L.ITEM_MODE_ALWAYS, isMode, setMode, "always")
+    end,
+    lock = { get = function() return o().locked end, set = function(v) ns.Menu.Set("questItems.locked", v) end },
+    hide = { label = L.ITEM_MENU_HIDE, fn = hideBar },
+  })
 end
 
 handle:SetScript("OnMouseUp", function(self, button)

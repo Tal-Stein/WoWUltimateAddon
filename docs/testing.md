@@ -36,9 +36,12 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] "Create macro" makes an **UltTarget** general macro that works from an action bar.
 - [ ] The target bar shows one button per quest mob name. The level is colored grey, green,
       yellow, orange or red, and hovering shows quest progress. Clicking targets.
-- [ ] The target bar is a fixed panel titled "Ultimate Targets". It stays on screen while
-      enabled and shows "No targets nearby" when empty. Drag it by its title while unlocked.
-      It stays put while locked or with "Lock all bars" on.
+- [ ] The target bar has no frame, like the quest item bar. It stays on screen while enabled
+      and shows "No targets nearby" when empty. Its "Ultimate Targets" title shows above it
+      while unlocked; drag the bar by it. It stays put while locked or with "Lock all bars" on.
+- [ ] Right-clicking a target button, the title or "No targets nearby" opens a menu: Never
+      target <name> (on a button), Horizontal/Vertical, Lock bar, Hide target bar, Settings.
+      Right-click never targets.
 - [ ] With many quest mobs (set "Maximum buttons" to 24), the panel grows into rows of
       "Buttons per row". Buttons and name labels line up in even columns inside the frame,
       including in the vertical orientation.
@@ -52,7 +55,8 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       sounds work when that option is enabled. The same mob doesn't repeat inside the cooldown.
 
 ## Minimap button
-- [ ] A spyglass button sits on the minimap edge. Clicking opens settings. Dragging moves it
+- [ ] A spyglass button sits on the minimap edge. Clicking opens settings, and right-clicking
+      opens a menu with "Hide minimap button" and Settings. Dragging moves it
       around the edge, and the position survives `/reload`. "Show minimap button" in settings
       hides it.
 

@@ -169,3 +169,30 @@ function __boot(account, char)
   __fire("PLAYER_LOGIN")
 end
 SlashCmdList = {}
+
+-- MenuUtil stand-in: records the last context menu built. __menuEntry(text) finds an entry.
+-- Entry fields: kind, text, a, b, c = the args after the text (fn / isSelected, setter, value).
+__menu = nil
+local function newMenuRoot()
+  local root = { entries = {} }
+  local function add(kind, text, a, b, c)
+    local e = { kind = kind, text = text, a = a, b = b, c = c }
+    root.entries[#root.entries + 1] = e
+    return e
+  end
+  function root:CreateTitle(t) return add("title", t) end
+  function root:CreateButton(t, fn) return add("button", t, fn) end
+  function root:CreateCheckbox(t, isSel, set) return add("checkbox", t, isSel, set) end
+  function root:CreateRadio(t, isSel, set, v) return add("radio", t, isSel, set, v) end
+  function root:CreateDivider() return add("divider") end
+  return root
+end
+MenuUtil = { CreateContextMenu = function(owner, gen)
+  local root = newMenuRoot()
+  gen(owner, root)
+  __menu = { owner = owner, root = root }
+end }
+function __menuEntry(text)
+  if not __menu then return nil end
+  for _, e in ipairs(__menu.root.entries) do if e.text == text then return e end end
+end

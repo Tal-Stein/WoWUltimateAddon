@@ -11,6 +11,13 @@
 
 Locale\enUS.lua
 Logic\Tables.lua
+Logic\Levels.lua
+Logic\Units.lua
+Logic\Filters.lua
+Logic\Ranking.lua
+Logic\Macro.lua
+Logic\AlertGate.lua
+Logic\ItemRelevance.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua

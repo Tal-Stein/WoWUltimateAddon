@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: Ultimate
+## Notes: Personal quality-of-life suite: quest-mob targeting, rare alerts and a quest item bar.
+## Author: Tal Stein
+## Version: 0.1.0
+## Category: Quests
+## Dependencies: Questie, QuestieDB
+## SavedVariables: UltimateDB
+## SavedVariablesPerCharacter: UltimateCharDB
+## IconTexture: Interface\Icons\INV_Misc_Spyglass_03
+
+Locale\enUS.lua
+Logic\Tables.lua

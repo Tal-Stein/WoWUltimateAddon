@@ -182,3 +182,43 @@ describe("TargetBar look and right-click menu", function()
     ns:Fire("ULT_SETTING_CHANGED", "targeting.bar.enabled")
   end)
 end)
+
+describe("TargetBar portraits", function()
+  local UI = ns.UI
+  local portraits = {}
+  SetPortraitTexture = function(tex, unit) portraits[#portraits + 1] = { tex = tex, unit = unit } end
+  local function withIcons()
+    for _, b in ipairs(Bar.buttons) do
+      b.icon = b.icon or b:CreateTexture()
+    end
+  end
+  local function show(c)
+    ns:Fire("ULT_TARGETS_CHANGED", { c.name }, { [c.name] = c })
+  end
+  it("shows the mob's own portrait from its nameplate", function()
+    withIcons()
+    portraits = {}
+    show({ name = "Kobold", level = 5, count = 1, kind = "quest", mobs = { { unit = "nameplate4", classification = "normal" } } })
+    local b = UltimateTargetBarButton1
+    assertEq(#portraits >= 1 and portraits[#portraits].unit, "nameplate4")
+    assertTrue(portraits[#portraits].tex == b.icon)
+    assertTrue(b.badge:IsShown(), "small quest badge in the corner")
+    assertEq(b.badge.texture, UI.ICON_QUEST)
+  end)
+  it("rares get the rare badge", function()
+    show({ name = "Mor'Ladim", level = 35, count = 1, kind = "rare", mobs = { { unit = "nameplate2", classification = "rareelite" } } })
+    assertEq(UltimateTargetBarButton1.badge.texture, UI.ICON_RARE)
+  end)
+  it("falls back to the plain icon without a unit, or with portraits off", function()
+    portraits = {}
+    show({ name = "Ghost", level = 5, count = 1, kind = "quest", mobs = {} })
+    assertEq(#portraits, 0)
+    assertEq(UltimateTargetBarButton1.icon.texture, UI.ICON_QUEST)
+    assertFalse(UltimateTargetBarButton1.badge:IsShown())
+    ns.db.targeting.bar.portraits = false
+    show({ name = "Kobold", level = 5, count = 1, kind = "quest", mobs = { { unit = "nameplate4" } } })
+    assertEq(#portraits, 0)
+    assertEq(UltimateTargetBarButton1.icon.texture, UI.ICON_QUEST)
+    ns.db.targeting.bar.portraits = true
+  end)
+end)

@@ -104,6 +104,8 @@ function Frame:CreateFontString(name) return setmetatable({ kind = "FontString",
 function Frame:CreateAnimationGroup() return setmetatable({ kind = "AnimGroup", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
 function Frame:CreateAnimation() return setmetatable({ kind = "Anim", attrs = {}, events = {}, scripts = {}, shown = true }, Frame) end
 function Frame:SetText(t) self.text = t end
+function Frame:SetTexture(t) self.texture = t end
+function Frame:GetTexture() return self.texture end
 function Frame:GetText() return self.text end
 function Frame:SetFormattedText(f, ...) self.text = string.format(f, ...) end
 function Frame:SetPoint(...)

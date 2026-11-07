@@ -134,6 +134,7 @@ local function buildTargeting(ctx)
 
   ctx:Header(L.SECTION_BAR)
   ctx:Checkbox("targeting.bar.enabled", L.SHOW_BAR, L.SHOW_BAR_TIP)
+  ctx:Checkbox("targeting.bar.portraits", L.BAR_PORTRAITS, L.BAR_PORTRAITS_TIP)
   ctx:Slider("targeting.bar.max", L.MAX_BUTTONS, 1, 24, 1, fmtInt)
   ctx:Slider("targeting.bar.perRow", L.PER_ROW, 1, 12, 1, fmtInt, L.PER_ROW_TIP)
   ctx:Dropdown("targeting.bar.orientation", L.ORIENTATION, Panel.ORIENTATIONS)

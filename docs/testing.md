@@ -39,6 +39,10 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] The target bar has no frame, like the quest item bar. It stays on screen while enabled
       and shows "No targets nearby" when empty. Its "Ultimate Targets" title shows above it
       while unlocked; drag the bar by it. It stays put while locked or with "Lock all bars" on.
+- [ ] Each target button shows the mob's own portrait, with a small quest (or rare) badge in
+      the top-right corner. "Show mob portraits" off gives the plain icons back.
+- [ ] `/ult scan` ends with "Target key: …", "UltTarget macro: …" and "A press runs:" followed
+      by the macro lines. They name a mob that is actually nearby.
 - [ ] Right-clicking a target button, the title or "No targets nearby" opens a menu: Never
       target <name> (on a button), Horizontal/Vertical, Lock bar, Hide target bar, Settings.
       Right-click never targets.

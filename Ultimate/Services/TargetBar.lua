@@ -112,6 +112,11 @@ for i = 1, MAX_BUTTONS do
   b.label:SetWordWrap(false)
   b.countText = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
   b.countText:SetPoint("BOTTOMRIGHT", -2, 2)
+  -- Small quest/rare/boss badge shown in the corner when the icon is the mob's portrait.
+  b.badge = b:CreateTexture(nil, "OVERLAY")
+  b.badge:SetSize(14, 14)
+  b.badge:SetPoint("TOPRIGHT", 1, 1)
+  b.badge:Hide()
   b:SetScript("OnEnter", onEnter)
   b:SetScript("OnLeave", onLeave)
   b:Hide()
@@ -127,13 +132,28 @@ local function iconFor(c)
   return UI.ICON_QUEST
 end
 
+-- The nameplate unit of the candidate's first visible mob, for its portrait.
+local function unitOf(c)
+  for _, m in ipairs(c.mobs or {}) do
+    if m.unit then return m.unit end
+  end
+end
+
 -- Non-protected visuals (icon, labels, counts). Safe in combat.
 function Bar:UpdateVisuals()
   for _, b in ipairs(self.buttons) do
     local c = b.candidateName and self.byName and self.byName[b.candidateName]
     if c then
       local icon = b.icon or _G[b:GetName() .. "Icon"]
-      if icon then icon:SetTexture(iconFor(c)) end
+      local unit = opts().portraits ~= false and unitOf(c)
+      if icon and unit and SetPortraitTexture then
+        SetPortraitTexture(icon, unit)
+        b.badge:SetTexture(iconFor(c))
+        b.badge:Show()
+      else
+        if icon then icon:SetTexture(iconFor(c)) end
+        b.badge:Hide()
+      end
       local color = UI.DifficultyColor(c.level)
       b.level:SetText(UI.LevelText(c.level, c.mobs and c.mobs[1] and c.mobs[1].classification))
       b.level:SetTextColor(color.r, color.g, color.b)

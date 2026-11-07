@@ -18,7 +18,7 @@ ns.DB:RegisterDefaults("targeting", {
   markerSoloOnly = true,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
-  bar = { enabled = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
+  bar = { enabled = true, portraits = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
   markers = { enabled = true, size = 40, offset = 10, colorMode = "difficulty", anim = "bob", topOnly = false },
 })
 
@@ -181,4 +181,22 @@ end
 -- Bindings.xml entry point for "Refresh quest targets".
 function Ultimate_Refresh() T:Refresh(true) end
 
-ns:On("ULT_DEBUG_SCAN", T, function() T:Refresh(true) end)
+-- /ult scan: what the target key and the UltTarget macro will do right now.
+function T:Report()
+  local key = GetBindingKey and ns.Safe.read(GetBindingKey, "CLICK UltimateTargetButton:LeftButton")
+  ns:Print(key and string.format(L.SCAN_KEY, GetBindingText and GetBindingText(key) or key) or L.SCAN_KEY_NONE)
+  local index = GetMacroIndexByName and ns.Safe.read(GetMacroIndexByName, "UltTarget") or 0
+  local body
+  if index and index > 0 and GetMacroInfo then
+    local ok, _, _, b = pcall(GetMacroInfo, index)
+    if ok and type(b) == "string" and not ns.Safe.isSecret(b) then body = b end
+  end
+  ns:Print(body and string.format(L.SCAN_MACRO, (string.gsub(body, "\n", " | "))) or L.SCAN_MACRO_NONE)
+  ns:Print(L.SCAN_ARMED)
+  for line in string.gmatch(button:GetAttribute("macrotext") or "", "[^\n]+") do ns:Print("  " .. line) end
+end
+
+ns:On("ULT_DEBUG_SCAN", T, function()
+  T:Refresh(true)
+  T:Report()
+end)

@@ -10,6 +10,7 @@ DB.defaults.core = {
   debug = false,
   scanInterval = 0.5,
   lockAll = false,
+  minimap = { hide = false, angle = 200 },
 }
 DB.defaults.modules = {}
 

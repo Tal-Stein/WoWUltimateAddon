@@ -12,6 +12,8 @@ Requires **Questie**, including its **QuestieDB**.
 |---|---|
 | **Quest Targeting** | Uses Questie's database and your quest log to find nearby mobs you need for quests, including mobs that drop quest items. Plays a sound when one comes into view (separate sounds for regular, elite, boss, or easy vs dangerous mobs). Marks them with a large animated icon. Ranks them by your chosen priorities. |
 | **Target key / bar** | Bind "Target next quest mob" (or use the `UltTarget` macro). One press targets the best quest mob; pressing again moves to the next one. A bar shows every quest mob name nearby, colored by difficulty, and you click to target. Mobs tagged by someone else are skipped. |
+| **Target List** | A collapsible window ("Looking for") listing the mobs your open quests need, grouped by quest, with a portrait, level range and progress for each. Mobs in view are highlighted. Click the title to collapse it, drag it to move. |
+| **Minimap button** | Left-click shows or hides the target list, right-click opens settings, drag moves it around the minimap. It can be hidden in settings. |
 | **Rare Scanner** | Always-on alert for rare, rare-elite and world-boss mobs, plus your own watch list. Rares go to the front of the target bar. |
 | **Quest Items** | Buttons for usable quest items, shown only when relevant (or always). You can bind them to keys, drag them to action bars, and shift-click to pin. |
 
@@ -20,6 +22,7 @@ doesn't try to get around that. The add-on chooses *what* your key targets; you 
 
 ### Slash commands
 - `/ult`: open settings
+- `/ult list`: show or hide the target list
 - `/ult scan`: print the detected quest mobs, nearby candidates (with filter reasons) and rare history
 - `/ult reset`: reset bar positions
 - `/ult debug`: toggle debug output

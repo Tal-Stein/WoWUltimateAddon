@@ -1,0 +1,10 @@
+<Bindings>
+  <Binding name="CLICK UltimateTargetButton:LeftButton" header="ULTIMATE" category="ADDONS"/>
+  <Binding name="ULTIMATE_REFRESH" category="ADDONS">
+    Ultimate_Refresh()
+  </Binding>
+  <Binding name="CLICK UltimateQuestItem1:LeftButton" category="ADDONS"/>
+  <Binding name="CLICK UltimateQuestItem2:LeftButton" category="ADDONS"/>
+  <Binding name="CLICK UltimateQuestItem3:LeftButton" category="ADDONS"/>
+  <Binding name="CLICK UltimateQuestItem4:LeftButton" category="ADDONS"/>
+</Bindings>

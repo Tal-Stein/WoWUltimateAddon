@@ -102,10 +102,8 @@ end
 
 local function buildTargeting(ctx)
   ctx:Header(L.SECTION_KEY)
-  ctx:Button(L.KEY_BINDING, L.OPEN_KEYBINDINGS, function()
-    if Settings.KEYBINDINGS_CATEGORY_ID then Settings.OpenToCategory(Settings.KEYBINDINGS_CATEGORY_ID) end
-  end, L.KEY_BINDING_TIP)
-  ctx:Button(L.ACTION_BAR_MACRO, L.CREATE_MACRO, function() ns.Targeting:CreateActionBarMacro() end, L.ACTION_BAR_MACRO_TIP)
+  ctx:Keybinding("CLICK UltimateTargetButton:LeftButton", L.KEY_BINDING)
+  ctx:Keybinding("ULTIMATE_REFRESH", BINDING_NAME_ULTIMATE_REFRESH)
   ctx:Checkbox("targeting.autoArm", L.AUTO_ARM, L.AUTO_ARM_TIP)
   ctx:Checkbox("targeting.stopInCombat", L.STOP_IN_COMBAT, L.STOP_IN_COMBAT_TIP)
   ctx:Slider("targeting.fallbacks", L.FALLBACKS, 0, 4, 1, fmtInt, L.FALLBACKS_TIP)

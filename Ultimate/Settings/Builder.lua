@@ -78,6 +78,27 @@ function Ctx:Dropdown(path, label, choices, tooltip)
     indexOf(list(), default(path)))
 end
 
+-- Blizzard's own key binding row (the one on Options > Key Bindings) for a Bindings.xml command.
+-- The Settings panel saves bindings when it closes. Falls back to a button that opens Key Bindings.
+local function bindingIndex(command)
+  if not (GetNumBindings and GetBinding) then return nil end
+  for i = 1, GetNumBindings() do
+    if GetBinding(i) == command then return i end
+  end
+end
+
+function Ctx:Keybinding(command, fallbackLabel)
+  local index = bindingIndex(command)
+  if index and CreateKeybindingEntryInitializer then
+    local init = CreateKeybindingEntryInitializer(index, true)
+    self.layout:AddInitializer(init)
+    return init
+  end
+  return self:Button(fallbackLabel, KEY_BINDINGS or "Key Bindings", function()
+    if Settings.KEYBINDINGS_CATEGORY_ID then Settings.OpenToCategory(Settings.KEYBINDINGS_CATEGORY_ID) end
+  end)
+end
+
 function Ctx:Button(label, buttonText, onClick, tooltip)
   local init = CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, true)
   self.layout:AddInitializer(init)

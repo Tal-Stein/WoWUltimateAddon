@@ -159,59 +159,13 @@ function T:Stop()
   ns:Off("PLAYER_TARGET_CHANGED", T)
 end
 
--- The account macro "UltTarget" for action bars. A macro /click delivers a single press phase, and
--- secure buttons act on either the key-down or the key-up depending on the client's settings, so
--- the macro sends both; the button acts on exactly one of them.
-local MACRO_NAME, MACRO_ICON = "UltTarget", 134400
-T.MACRO_BODY = "/click UltimateTargetButton LeftButton 1\n/click UltimateTargetButton LeftButton"
-local OLD_BODIES = { ["/click UltimateTargetButton"] = true }
-
-local function macroBody(index)
-  if not GetMacroInfo then return nil end
-  local ok, _, _, body = pcall(GetMacroInfo, index)
-  if ok and type(body) == "string" and not ns.Safe.isSecret(body) then return body end
-end
-
-function T:CreateActionBarMacro()
-  if InCombatLockdown() then
-    ns:Print(L.MACRO_IN_COMBAT)
-    return false, L.MACRO_IN_COMBAT
-  end
-  local index = GetMacroIndexByName and GetMacroIndexByName(MACRO_NAME) or 0
-  local ok
-  if index and index > 0 then
-    ok = pcall(EditMacro, index, MACRO_NAME, MACRO_ICON, T.MACRO_BODY)
-  else
-    ok = pcall(CreateMacro, MACRO_NAME, MACRO_ICON, T.MACRO_BODY, nil)
-  end
-  local msg = ok and L.MACRO_CREATED or L.MACRO_FAILED
-  ns:Print(msg)
-  return ok, msg
-end
-
--- Bring an UltTarget macro made by an older version up to date; never touch an edited one.
-function T:UpgradeActionBarMacro()
-  if InCombatLockdown() or not GetMacroIndexByName then return end
-  local index = GetMacroIndexByName(MACRO_NAME) or 0
-  if index <= 0 then return end
-  local body = macroBody(index)
-  if body and OLD_BODIES[(string.gsub(body, "%s+$", ""))] then
-    pcall(EditMacro, index, MACRO_NAME, MACRO_ICON, T.MACRO_BODY)
-  end
-end
-
-ns:On("ULT_MODULES_STARTED", T, function() T:UpgradeActionBarMacro() end)
-
 -- Bindings.xml entry point for "Refresh quest targets".
 function Ultimate_Refresh() T:Refresh(true) end
 
--- /ult scan: what the target key and the UltTarget macro will do right now.
+-- /ult scan: which key presses the target button and what one press will run.
 function T:Report()
   local key = GetBindingKey and ns.Safe.read(GetBindingKey, "CLICK UltimateTargetButton:LeftButton")
   ns:Print(key and string.format(L.SCAN_KEY, GetBindingText and GetBindingText(key) or key) or L.SCAN_KEY_NONE)
-  local index = GetMacroIndexByName and ns.Safe.read(GetMacroIndexByName, "UltTarget") or 0
-  local body = index and index > 0 and macroBody(index) or nil
-  ns:Print(body and string.format(L.SCAN_MACRO, (string.gsub(body, "\n", " | "))) or L.SCAN_MACRO_NONE)
   ns:Print(L.SCAN_ARMED)
   for line in string.gmatch(button:GetAttribute("macrotext") or "", "[^\n]+") do ns:Print("  " .. line) end
 end

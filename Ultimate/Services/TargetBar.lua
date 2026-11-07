@@ -94,7 +94,9 @@ emptyArea:SetScript("OnMouseUp", onMouseUp)
 
 for i = 1, MAX_BUTTONS do
   -- Kept at the template's own size (see UI.NativeButtonSize); the bar is scaled instead.
-  local b = CreateFrame("Button", "UltimateTargetBarButton" .. i, frame, "SecureActionButtonTemplate, ActionButtonTemplate")
+  -- SecureActionButtonTemplate must come last: ActionButtonTemplate inherits FlyoutButtonTemplate,
+  -- whose OnClick (Flyout_OnClick) would otherwise replace the secure click handler.
+  local b = CreateFrame("Button", "UltimateTargetBarButton" .. i, frame, "ActionButtonTemplate, SecureActionButtonTemplate")
   b:RegisterForClicks("AnyUp", "AnyDown")
   b:SetAttribute("type", "macro")
   b:SetAttribute("useOnKeyDown", false)

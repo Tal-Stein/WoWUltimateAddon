@@ -11,6 +11,9 @@
 
 Locale\enUS.lua
 Logic\Tables.lua
+Logic\Levels.lua
+Logic\Units.lua
+Logic\Filters.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua

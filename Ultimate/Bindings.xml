@@ -3,9 +3,6 @@
   <Binding name="ULTIMATE_REFRESH" category="ADDONS">
     Ultimate_Refresh()
   </Binding>
-  <Binding name="ULTIMATE_TOGGLE_LIST" category="ADDONS">
-    Ultimate_ToggleTargetList()
-  </Binding>
   <Binding name="CLICK UltimateQuestItem1:LeftButton" category="ADDONS"/>
   <Binding name="CLICK UltimateQuestItem2:LeftButton" category="ADDONS"/>
   <Binding name="CLICK UltimateQuestItem3:LeftButton" category="ADDONS"/>

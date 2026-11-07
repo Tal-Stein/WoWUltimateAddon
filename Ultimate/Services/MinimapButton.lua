@@ -2,7 +2,7 @@ local ADDON, ns = ...
 local L = ns.L
 
 -- Round minimap button in Blizzard's tracking-button style (same art LibDBIcon buttons use).
--- Left-click: show/hide the target list. Right-click: settings. Drag: move around the edge.
+-- Click: settings. Drag: move around the edge.
 local MB = {}
 ns.MinimapButton = MB
 
@@ -34,26 +34,15 @@ local function onUpdateDrag(self)
   MB:Place()
 end
 
-local function onClick(_, button)
-  if button == "RightButton" then
-    if ns.OpenSettings then ns.OpenSettings() end
-  elseif ns.Modules:IsActive("targetList") then
-    ns:Fire("ULT_TOGGLE_TARGET_LIST")
-  elseif ns.OpenSettings then
-    ns.OpenSettings()
-  end
+local function onClick()
+  if ns.OpenSettings then ns.OpenSettings() end
 end
 
 local function onEnter(self)
   if not GameTooltip then return end
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:SetText(L.ADDON_TITLE)
-  local TL = ns.TargetListModule
-  if TL and ns.Modules:IsActive("targetList") and (TL.total or 0) > 0 then
-    GameTooltip:AddLine(string.format(L.TARGET_LIST_COUNT, TL.nearbyTotal or 0, TL.total), 1, 1, 1)
-  end
-  GameTooltip:AddDoubleLine(L.MINIMAP_LEFT, L.MINIMAP_TOGGLE_LIST, 0, 1, 0, 1, 1, 1)
-  GameTooltip:AddDoubleLine(L.MINIMAP_RIGHT, L.MINIMAP_SETTINGS, 0, 1, 0, 1, 1, 1)
+  GameTooltip:AddLine(L.MINIMAP_CLICK, 1, 1, 1)
   GameTooltip:Show()
 end
 

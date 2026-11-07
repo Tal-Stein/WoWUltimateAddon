@@ -47,16 +47,10 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Alert sounds: regular, elite and boss quest mobs each play their own sound. Level-based
       sounds work when that option is enabled. The same mob doesn't repeat inside the cooldown.
 
-## Target List and minimap button
-- [ ] A spyglass button sits on the minimap edge. Dragging moves it around the edge, and the
-      position survives `/reload`. "Show minimap button" in settings hides it.
-- [ ] Left-click collapses and expands the "Looking for" window, and right-click opens settings.
-      The tooltip shows "N of M in view".
-- [ ] The window lists each quest's mobs with a level range and progress (4/10). Mobs in view
-      get a green highlight, and the header count updates.
-- [ ] *Verify* that the 3D portraits show the mob (`PlayerModel:SetCreature`). If they stay
-      empty, the quest icon underneath shows instead. Turn off "Show portraits" if they look wrong.
-- [ ] Collapsing works in combat, with no "Interface action failed" message.
+## Minimap button
+- [ ] A spyglass button sits on the minimap edge. Clicking opens settings. Dragging moves it
+      around the edge, and the position survives `/reload`. "Show minimap button" in settings
+      hides it.
 
 ## Rare Scanner
 - [ ] A rare's nameplate gives a "RARE: …" warning and a sound, and the rare goes to the front

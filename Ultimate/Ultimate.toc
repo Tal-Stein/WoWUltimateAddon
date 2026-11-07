@@ -24,3 +24,4 @@ Core\Combat.lua
 Core\DB.lua
 Core\Modules.lua
 Core\Slash.lua
+Data\QuestIndex.lua

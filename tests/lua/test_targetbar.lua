@@ -63,3 +63,13 @@ describe("TargetBar review fixes", function()
     ns.db.targeting.bar.max = 6
   end)
 end)
+
+describe("TargetBar button art", function()
+  it("keeps the template's own button size and scales the bar instead", function()
+    for _, b in ipairs(Bar.buttons) do b.GetWidth = function() return 45 end end
+    Bar.native = nil
+    changed({ "Q" })
+    Bar:Layout(true)
+    assertTrue(math.abs(Bar.barScale - 36 / 45) < 1e-6)
+  end)
+end)

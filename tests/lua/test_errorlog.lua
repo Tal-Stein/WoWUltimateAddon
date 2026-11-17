@@ -54,3 +54,19 @@ describe("Error log", function()
     assertEq(#entries(), 0)
   end)
 end)
+
+describe("Error log: errors outside Ultimate's own guards", function()
+  it("records game-reported Lua errors that run through Ultimate's files, and passes every error on", function()
+    EL:Clear()
+    local handler = geterrorhandler()
+    local passed = {}
+    -- the previous handler (Blizzard's) still gets every error
+    EL.previousHandler = function(msg) passed[#passed + 1] = msg end
+    handler("Interface/AddOns/Ultimate/Services/GradeSurfaces.lua:120: attempt to index a nil value")
+    handler("Interface/AddOns/Questie/Modules/Foo.lua:5: something else")
+    assertEq(#passed, 2)
+    assertEq(#entries(), 1)
+    assertEq(entries()[1].kind, "lua")
+    assertTrue(string.find(entries()[1].detail, "GradeSurfaces", 1, true) ~= nil)
+  end)
+end)

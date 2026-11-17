@@ -92,20 +92,20 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 
 ## Quest Grades
 - [ ] Talking to a quest giver shows a badge at the top right of the quest dialog, like
-      "L4 G– ~8m". Hovering it shows the tooltip: XP and minutes, XP/hour, gear line, time,
+      "L4 G- ~8m". Hovering it shows the tooltip: XP and minutes, XP/hour, gear line, time,
       warnings.
 - [ ] Open the quest log (map): each quest title has a badge after it, with the same tooltip.
 - [ ] Questie's tracker: each quest title has a badge after it. It disappears from lines that
       no longer show a quest.
 - [ ] With GearQuestForever loaded, a quest whose reward is an upgrade shows G1–G5 and names
-      the item in the tooltip. A quest with no gear reward shows G–. Without GearQuestForever,
+      the item in the tooltip. A quest with no gear reward shows G-. Without GearQuestForever,
       or before the item is cached, G? appears.
 - [ ] *Verify* that `GetNumQuestLogChoices(questID, true)` and
       `GetQuestLogItemLink("choice", i, questID)` work on Forever (gear for quests already in
       the log). If they don't, log quests show G? while the dialog still grades gear.
 - [ ] A quest whose item drops have no known drop rate shows "L?" and "Time: ?", not a guess.
 - [ ] `/ult` → Quest grades: switch Show to "One grade from my playing style". Badges become
-      "★4 ~8m". Changing Style changes grades; Custom uses the six sliders.
+      a star raid-marker icon and a number, like "(star)4 ~8m". Changing Style changes grades; Custom uses the six sliders.
 - [ ] Grade scale "Relative to my options": grades spread across 1–5 among your quests and
       shift when you accept a better quest.
 - [ ] Unticking each display checkbox (dialog, quest log, tracker, time, warnings) removes

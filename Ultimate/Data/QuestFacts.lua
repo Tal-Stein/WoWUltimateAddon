@@ -116,7 +116,37 @@ local function build(questId)
     return dbGet("Npc", npcId, "maxLevel"), rank >= 1
   end
 
-  addZone(firstNpc(dbGet("Quest", questId, "startedBy")))
+  local startedBy = dbGet("Quest", questId, "startedBy")
+  addZone(firstNpc(startedBy))
+
+  -- A quest started by an item: farming that item is part of the quest's cost, unless the quest
+  -- is already in the log or the item is in the bags. Mob drops are costed by drop chance;
+  -- chests/objects can't be, so they make the time unknown; anything else (a reward, a vendor
+  -- item) comes along the way.
+  local starters = type(startedBy) == "table" and startedBy[3]
+  local starter = type(starters) == "table" and starters[1]
+  local inLog = ns.QuestIndex and ns.QuestIndex:QuestInfo(questId)
+  local countFn = (C_Item and C_Item.GetItemCount) or GetItemCount
+  if starter and not inLog and (ns.Safe.read(countFn, starter) or 0) == 0 then
+    f.starter = starter
+    local droppers = dbGet("Item", starter, "npcDrops") or {}
+    if #droppers > 0 then
+      local sum, known, level, elite = 0, 0, nil, false
+      for _, npcId in ipairs(droppers) do
+        local r = dropRate(starter, npcId)
+        if r then sum, known = sum + r, known + 1 end
+        local l, e = npcInfo(npcId)
+        if l and (not level or l > level) then level = l end
+        elite = elite or e
+        addZone(npcId)
+      end
+      f.starterRate = known > 0 and sum / known or nil
+      f.objectives[#f.objectives + 1] = { kind = "drop", count = 1, rate = f.starterRate,
+        level = level, elite = elite, starter = true }
+    elseif next(dbGet("Item", starter, "objectDrops") or {}) then
+      f.objectives[#f.objectives + 1] = { kind = "unknown", starter = true }
+    end
+  end
   local objectives = dbGet("Quest", questId, "objectives")
   objectives = type(objectives) == "table" and objectives or {}
 

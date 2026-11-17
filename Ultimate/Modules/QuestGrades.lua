@@ -201,7 +201,7 @@ function QG:Grade(questId, ctx)
   local key = questId .. (ctx and ctx.key or "")
   if self.cache[key] then return self.cache[key] end
   local r = rawFor(questId, ctx)
-  local res = { seconds = r.seconds, estimate = r.estimate, xp = r.xp, gearBest = r.gearBest,
+  local res = { facts = r.facts, seconds = r.seconds, estimate = r.estimate, xp = r.xp, gearBest = r.gearBest,
     took = ns.QuestTimes and ns.QuestTimes:Took(questId) or nil, warnings = {} }
   res.leveling = levelingOf(questId, ctx)
   res.gear = r.gear
@@ -222,6 +222,7 @@ function QG:Grade(questId, ctx)
   end
   local f = r.facts
   if f then
+    if f.starter then res.warnings[#res.warnings + 1] = "starter" end
     if f.elite then res.warnings[#res.warnings + 1] = "elite" end
     if f.group then res.warnings[#res.warnings + 1] = "group" end
     if f.escort then res.warnings[#res.warnings + 1] = "escort" end
@@ -240,7 +241,7 @@ end
 
 local function minutes(secs) return math.max(1, math.floor(secs / 60 + 0.5)) end
 
-local WARN = { elite = "WARN_ELITE", group = "WARN_GROUP", escort = "WARN_ESCORT", timed = "WARN_TIMED",
+local WARN = { starter = "WARN_STARTER", elite = "WARN_ELITE", group = "WARN_GROUP", escort = "WARN_ESCORT", timed = "WARN_TIMED",
   travel = "WARN_TRAVEL" }
 
 -- Compact text for a quest title: "L4 G2 ~8m" or "★4 ~8m", with "!" when there are warnings.
@@ -300,7 +301,16 @@ function QG:TooltipLines(questId, ctx)
     local spent = ns.QuestTimes and ns.QuestTimes:Spent(questId)
     if spent and spent >= 60 then add(string.format(L.GRADE_SPENT, minutes(spent))) end
   end
-  for _, w in ipairs(r.warnings) do add(L[WARN[w]], { 1, 0.3, 0.3 }) end
+  for _, w in ipairs(r.warnings) do
+    local text = L[WARN[w]]
+    if w == "starter" then
+      local rate = r.facts and r.facts.starterRate
+      local pct = rate and (rate == math.floor(rate) and string.format("%d%%", rate)
+        or string.format(rate < 10 and "%.1f%%" or "%.0f%%", rate))
+      text = string.format(L.WARN_STARTER, pct or "?")
+    end
+    add(text, { 1, 0.3, 0.3 })
+  end
   return lines
 end
 

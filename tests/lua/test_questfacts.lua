@@ -13,7 +13,9 @@ LibQuestieDB = {
   Quest = getter(db.quest), Npc = getter(db.npc), Item = getter(db.item),
 }
 
-local rates = { [3172] = { [1190] = 31, [1191] = 36 } }
+local rates = { [3172] = { [1190] = 31, [1191] = 36 }, [5000] = { [1190] = 3 } }
+local bags = {}
+GetItemCount = function(id) return bags[id] or 0 end
 local available = {}
 local tags = {}
 local function modules()
@@ -56,6 +58,42 @@ local function setup()
 end
 
 describe("QuestFacts", function()
+  it("costs the drop that starts a quest", function()
+    setup()
+    bags = {}
+    db.item[5000] = { name = "Torn Note", npcDrops = { 1190 } }
+    db.quest[60] = { name = "A Torn Note", questLevel = 11, startedBy = { nil, nil, { 5000 } }, objectives = {} }
+    local f = QF:Get(60)
+    assertEq(f.starterRate, 3)
+    local starter = f.objectives[1]
+    assertEq(starter.kind, "drop"); assertEq(starter.count, 1); assertEq(starter.rate, 3)
+    -- 34 kills of level-11 boars at 25 s + 90 s travel
+    assertEq(ns.Grades.estimateSeconds(f, 11), 34 * 25 + 90)
+  end)
+  it("doesn't cost the starter once you have it or the quest", function()
+    setup()
+    db.item[5000] = { name = "Torn Note", npcDrops = { 1190 } }
+    db.quest[60] = { name = "A Torn Note", questLevel = 11, startedBy = { nil, nil, { 5000 } }, objectives = {} }
+    bags = { [5000] = 1 }
+    assertEq(#QF:Get(60).objectives, 0)
+    bags = {}
+    QF:Invalidate()
+    QI.quests[60] = { questID = 60, title = "A Torn Note", objectives = {} }
+    assertEq(#QF:Get(60).objectives, 0)
+  end)
+  it("knows when a starter's chance is unknown, and when it's simply handed over", function()
+    setup()
+    bags = {}
+    db.item[5001] = { name = "Strange Rune", npcDrops = { 299 } } -- no drop rate known
+    db.item[5002] = { name = "Old Chest Key", objectDrops = { 77 } }
+    db.item[5003] = { name = "Sealed Letter" } -- a quest reward / vendor item
+    db.quest[61] = { name = "Rune", questLevel = 11, startedBy = { nil, nil, { 5001 } }, objectives = {} }
+    db.quest[62] = { name = "Key", questLevel = 11, startedBy = { nil, nil, { 5002 } }, objectives = {} }
+    db.quest[63] = { name = "Letter", questLevel = 11, startedBy = { nil, nil, { 5003 } }, objectives = {} }
+    assertNil(ns.Grades.estimateSeconds(QF:Get(61), 11))
+    assertNil(ns.Grades.estimateSeconds(QF:Get(62), 11))
+    assertEq(ns.Grades.estimateSeconds(QF:Get(63), 11), 90)
+  end)
   it("reads counts from the quest text when the quest isn't in the log", function()
     setup()
     db.quest[33].objectivesText = { "Kill 8 Young Wolves for Marshal McBride." }

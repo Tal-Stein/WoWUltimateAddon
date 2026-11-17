@@ -32,6 +32,7 @@ Data\QuestIndex.lua
 Data\PartyNeeds.lua
 Data\QuestFacts.lua
 Data\QuestTimes.lua
+Data\GearValue.lua
 Services\Nameplates.lua
 Services\UIUtil.lua
 Services\Menu.lua

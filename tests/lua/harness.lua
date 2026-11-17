@@ -70,7 +70,18 @@ __secret = {}
 function issecretvalue(v) return v ~= nil and __secret[v] == true end
 function print(...) end
 function geterrorhandler() return function(e) end end
-function hooksecurefunc() end
+-- Post-hook like WoW's: hooksecurefunc([tbl,] name, fn). Missing targets are ignored here.
+function hooksecurefunc(a, b, c)
+  local tbl, name, fn = a, b, c
+  if type(a) == "string" then tbl, name, fn = _G, a, b end
+  local orig = type(tbl) == "table" and tbl[name]
+  if type(orig) ~= "function" then return end
+  tbl[name] = function(...)
+    local r = { orig(...) }
+    fn(...)
+    return unpack(r)
+  end
+end
 strtrim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 tinsert, tremove = table.insert, table.remove
@@ -127,6 +138,7 @@ function Frame:SetPoint(...)
   self.point = { ... }
 end
 function Frame:GetPoint() if self.point then return unpack(self.point) end end
+function Frame:SetMouseClickEnabled(on) self.mouseClickEnabled = on end
 -- Any other method is a recorded no-op.
 setmetatable(Frame, { __index = function(_, k) if type(k) == "string" and k:match("^%u") then return function(self, ...) end end end })
 

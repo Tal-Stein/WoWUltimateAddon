@@ -13,6 +13,7 @@
 Locale\enUS.lua
 Logic\Tables.lua
 Logic\Levels.lua
+Logic\QuestGrades.lua
 Logic\Units.lua
 Logic\Filters.lua
 Logic\Ranking.lua
@@ -29,6 +30,9 @@ Core\Modules.lua
 Core\Slash.lua
 Data\QuestIndex.lua
 Data\PartyNeeds.lua
+Data\QuestFacts.lua
+Data\QuestTimes.lua
+Data\GearValue.lua
 Services\Nameplates.lua
 Services\UIUtil.lua
 Services\Menu.lua
@@ -39,6 +43,8 @@ Services\Sounds.lua
 Services\Alerts.lua
 Services\MinimapButton.lua
 Modules\QuestTargeting.lua
+Modules\QuestGrades.lua
+Services\GradeSurfaces.lua
 Modules\RareScanner.lua
 Modules\QuestItems.lua
 Modules\FocusedChat.lua

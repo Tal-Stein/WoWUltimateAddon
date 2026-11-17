@@ -33,10 +33,45 @@ local function call(fn, ...)
   return nil
 end
 
+-- XP at the player's level. Questie returns 0 both at max level and when it has no data, so a
+-- 0 only counts as real at max level; a missing XP row is "unknown".
 local function xpFor(questId)
   local qxp = questie("QuestXP")
-  local xp = qxp and call(qxp.GetQuestLogRewardXP, qxp, questId)
-  return type(xp) == "number" and xp or nil
+  local row = qxp and type(qxp.db) == "table" and qxp.db[questId]
+  if type(row) ~= "table" or (tonumber(row[1]) or 0) <= 0 or (tonumber(row[2]) or 0) <= 0 then
+    return nil
+  end
+  local xp = call(qxp.GetQuestLogRewardXP, qxp, questId)
+  if type(xp) ~= "number" then return nil end
+  if xp == 0 then
+    local level, max = ns.Safe.read(UnitLevel, "player"), ns.Safe.read(GetMaxPlayerLevel)
+    return (level and max and level >= max) and 0 or nil
+  end
+  return xp
+end
+
+-- "Kill 8 Young Wolves" / "Bring 3 pieces of Bear Meat, 4 Boar Intestines": the last number
+-- before the name (or its stem, for plurals) in the quest's objective text.
+local function textCount(texts, name)
+  if type(texts) ~= "table" or type(name) ~= "string" or name == "" then return nil end
+  local lname = string.lower(name)
+  local needles = { lname, string.sub(lname, 1, -2), string.sub(lname, 1, -3) }
+  for _, text in ipairs(texts) do
+    if type(text) == "string" then
+      local ltext = string.lower(text)
+      for _, needle in ipairs(needles) do
+        local at = #needle >= 3 and string.find(ltext, needle, 1, true)
+        if at then
+          local before = string.sub(ltext, math.max(1, at - 25), at - 1)
+          local last
+          for n in string.gmatch(before, "(%d+)") do last = n end
+          if last then return tonumber(last) end
+          break
+        end
+      end
+    end
+  end
+  return nil
 end
 
 local function dropRate(itemId, npcId)
@@ -85,16 +120,27 @@ local function build(questId)
   local objectives = dbGet("Quest", questId, "objectives")
   objectives = type(objectives) == "table" and objectives or {}
 
+  local texts = dbGet("Quest", questId, "objectivesText")
+  local function countOf(live, name)
+    if live and live.numRequired then return live.numRequired end
+    return textCount(texts, name)
+  end
+
   local liveKills = liveOfType(questId, "monster")
   for i, t in ipairs(objectives[1] or {}) do
     local level, elite = npcInfo(t[1])
     addZone(t[1])
-    local live = liveKills[i]
-    f.objectives[#f.objectives + 1] = { kind = "kill", count = live and live.numRequired or 1,
+    f.objectives[#f.objectives + 1] = { kind = "kill", count = countOf(liveKills[i], t[2] or dbGet("Npc", t[1], "name")),
       level = level, elite = elite }
   end
-  for _ , t in ipairs(objectives[2] or {}) do
-    f.objectives[#f.objectives + 1] = { kind = "object", count = 1 }
+  local liveObjects = liveOfType(questId, "object")
+  for i, t in ipairs(objectives[2] or {}) do
+    f.objectives[#f.objectives + 1] = { kind = "object",
+      count = countOf(liveObjects[i], t[2] or dbGet("Object", t[1], "name")) }
+  end
+  -- Kill credit and spell objectives aren't modelled: their time is unknown, not zero.
+  if next(objectives[5] or {}) or next(objectives[6] or {}) then
+    f.objectives[#f.objectives + 1] = { kind = "unknown" }
   end
   local liveItems = liveOfType(questId, "item")
   for i, t in ipairs(objectives[3] or {}) do
@@ -108,12 +154,12 @@ local function build(questId)
       elite = elite or e
       addZone(npcId)
     end
-    local live = liveItems[i]
+    local count = countOf(liveItems[i], t[2] or dbGet("Item", t[1], "name"))
     if #droppers > 0 then
-      f.objectives[#f.objectives + 1] = { kind = "drop", count = live and live.numRequired or 1,
+      f.objectives[#f.objectives + 1] = { kind = "drop", count = count,
         rate = known > 0 and sum / known or nil, level = level, elite = elite }
     else
-      f.objectives[#f.objectives + 1] = { kind = "object", count = live and live.numRequired or 1 }
+      f.objectives[#f.objectives + 1] = { kind = "object", count = count }
     end
   end
   addZone(firstNpc(dbGet("Quest", questId, "finishedBy")))

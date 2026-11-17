@@ -18,7 +18,8 @@ local available = {}
 local tags = {}
 local function modules()
   return {
-    QuestXP = { GetQuestLogRewardXP = function(_, id) return id == 418 and 1150 or 0 end },
+    QuestXP = { db = { [418] = { 11, 1150 }, [33] = { 6, 400 } },
+      GetQuestLogRewardXP = function(_, id) return id == 418 and 1150 or 0 end },
     DropDB = { GetItemDroprate = function(item, npc)
       local r = rates[item] and rates[item][npc]
       return r and { r, "Wowhead" } or nil
@@ -55,6 +56,32 @@ local function setup()
 end
 
 describe("QuestFacts", function()
+  it("reads counts from the quest text when the quest isn't in the log", function()
+    setup()
+    db.quest[33].objectivesText = { "Kill 8 Young Wolves for Marshal McBride." }
+    QF:Invalidate()
+    assertEq(QF:Get(33).objectives[1].count, 8)
+    QI.quests = {}
+    db.quest[418].objectivesText = { "Bring 3 pieces of Bear Meat, 4 Boar Intestines, and 3 Spider Ichor." }
+    QF:Invalidate()
+    assertEq(QF:Get(418).objectives[1].count, 4)
+  end)
+  it("knows the difference between no XP data and zero XP", function()
+    setup()
+    db.quest[34] = { name = "No Data", questLevel = 5, objectives = {} }
+    assertNil(QF:Get(34).xp, "no XP row: unknown")
+    assertEq(QF:Get(33).xp, nil, "0 from Questie below max level means unknown")
+    GetMaxPlayerLevel = function() return 11 end
+    QF:Invalidate()
+    assertEq(QF:Get(33).xp, 0, "0 at max level is real")
+    GetMaxPlayerLevel = nil
+  end)
+  it("doesn't cost objectives it can't model", function()
+    setup()
+    db.quest[35] = { name = "Use The Totem", questLevel = 10, objectives = { [5] = { { { 1190 }, 1190, "Totem used" } } } }
+    local f = QF:Get(35)
+    assertNil(ns.Grades.estimateSeconds(f, 11))
+  end)
   it("turns an item objective into a drop with the mean known rate and the log count", function()
     setup()
     local f = QF:Get(418)
@@ -71,7 +98,7 @@ describe("QuestFacts", function()
     local f = QF:Get(33)
     assertEq(f.objectives[1].kind, "kill")
     assertEq(f.objectives[1].level, 3)
-    assertEq(f.objectives[1].count, 1, "count 1 when the quest isn't in the log")
+    assertNil(f.objectives[1].count, "no count is guessed for a quest outside the log")
     assertTrue(f.chain)
   end)
   it("has no drop rate when Questie's drop data is missing", function()

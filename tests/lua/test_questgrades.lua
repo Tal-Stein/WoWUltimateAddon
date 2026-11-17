@@ -32,7 +32,8 @@ local function setup()
   QI.quests = { [418] = { questID = 418, title = "Thelsamar Blood Sausages", objectives = {
     { text = "Boar Intestines: 0/3", type = "item", finished = false, numFulfilled = 0, numRequired = 3 } } } }
   db.quest[418] = { name = "Thelsamar Blood Sausages", questLevel = 11, objectives = { [3] = { { 3172, nil, 0 } } } }
-  db.quest[33] = { name = "Wolves", questLevel = 9, startedBy = { { 197 } }, objectives = { [1] = { { 299, nil, 0 } } } }
+  db.quest[33] = { name = "Wolves", questLevel = 9, startedBy = { { 197 } }, objectives = { [1] = { { 299, nil, 0 } } },
+    objectivesText = { "Kill 1 Young Wolf." } }
   db.quest[77] = { name = "Unknown Drops", questLevel = 11, objectives = { [3] = { { 9999, nil, 0 } } } }
   db.item[3172] = { name = "Boar Intestines", npcDrops = { 1190, 1191 } }
   db.item[9999] = { name = "Mystery", npcDrops = { 1190 } }
@@ -64,7 +65,11 @@ describe("QuestGrades module", function()
   it("says '–' when the quest gives no XP at your level", function()
     setup()
     xp[418] = 0
+    assertNil(QG:Grade(418).leveling, "0 below max level is missing data, not 'nothing for you'")
+    GetMaxPlayerLevel = function() return 11 end
+    QG:Invalidate()
     assertEq(QG:Grade(418).leveling, "none")
+    GetMaxPlayerLevel = nil
   end)
   it("says '?' rather than guessing", function()
     setup()

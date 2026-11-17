@@ -30,7 +30,8 @@ function Grades.estimateSeconds(facts, playerLevel, consts)
   if type(facts) ~= "table" or type(facts.objectives) ~= "table" then return nil end
   local total = 0
   for _, o in ipairs(facts.objectives) do
-    local count = o.count or 1
+    local count = o.count
+    if not count then return nil end -- never guess how many
     if o.kind == "kill" then
       total = total + count * killCost(o, playerLevel, c)
     elseif o.kind == "drop" then

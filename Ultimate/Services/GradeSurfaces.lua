@@ -140,20 +140,21 @@ local function installTracker()
   hooksecurefunc(tracker, "Update", function() ns.SafeCall(S.RefreshTracker, S) end)
 end
 
--- Questie minimap icons ---------------------------------------------------------------------
+-- Questie map icons (minimap and world map) ---------------------------------------------------
 -- Questie's icons are frames named "QuestieFrame<N>" carrying data.Type and data.Id; it calls
 -- each icon's UpdateTexture on every draw, so a post-hook there labels (or clears) recycled icons.
 S.icons = {}
 
 local function labelIcon(icon)
   local data = type(icon.data) == "table" and icon.data or nil
-  local questId = icon.miniMapIcon and data and data.Type == "available" and data.Id or nil
+  local questId = data and data.Type == "available" and data.Id or nil
   if not icon.ultGrade then
     if not questId then return end
     icon.ultGrade = icon:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     icon.ultGrade:SetPoint("TOP", icon, "BOTTOM", 0, 1)
   end
-  local text = questId and surfaceOn("minimap") and ns.QuestGradesModule:Badge(questId, nil, { short = true }) or nil
+  local surface = icon.miniMapIcon and "minimap" or "worldMap"
+  local text = questId and surfaceOn(surface) and ns.QuestGradesModule:Badge(questId, nil, { short = true }) or nil
   if text then
     icon.ultGrade:SetText(text)
     icon.ultGrade:Show()

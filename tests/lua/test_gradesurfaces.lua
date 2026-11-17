@@ -126,7 +126,7 @@ describe("Grade surfaces on Questie's minimap icons", function()
     f.UpdateTexture = function() end
     return f
   end
-  it("labels quests you can pick up with a short grade, on the minimap only", function()
+  it("labels quests you can pick up with a short grade", function()
     local early = newIcon() -- made before Ultimate hooked in
     QuestieLoader = { _modules = { QuestieFrame = { CreateIconFrame = function() return newIcon() end } } }
     S.installed.minimap = nil
@@ -144,7 +144,13 @@ describe("Grade surfaces on Questie's minimap icons", function()
     assertFalse(icon.ultGrade.shown)
     icon.miniMapIcon, icon.data = nil, { Type = "available", Id = 33 } -- world map icon
     icon:UpdateTexture()
-    assertFalse(icon.ultGrade.shown)
+    assertTrue(icon.ultGrade.shown, "the world map too")
+    ns.db.questGrades.surfaces.worldMap = false
+    icon:UpdateTexture()
+    assertFalse(icon.ultGrade.shown, "world map has its own switch")
+    early:UpdateTexture()
+    assertTrue(early.ultGrade.shown, "minimap unaffected")
+    ns.db.questGrades.surfaces.worldMap = true
   end)
   it("follows the setting", function()
     local icon = _G["QuestieFrame1"]

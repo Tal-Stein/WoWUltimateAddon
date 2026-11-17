@@ -133,22 +133,31 @@ describe("Grade surfaces on Questie's minimap icons", function()
     S:Install()
     local icon = QuestieLoader._modules.QuestieFrame.CreateIconFrame(created + 1)
     icon.miniMapIcon, icon.data = true, { Type = "available", Id = 33 }
+    local graded = 0
+    local badge = QG.Badge
+    QG.Badge = function(...) graded = graded + 1; return badge(...) end
     icon:UpdateTexture()
+    assertEq(graded, 0, "no grading inside Questie's own draw call")
+    __advance(0.2)
+    QG.Badge = badge
     assertEq(icon.ultGrade:GetText(), "short33")
     assertTrue(icon.ultGrade.shown)
     early.miniMapIcon, early.data = true, { Type = "available", Id = 34 }
     early:UpdateTexture()
+    __advance(0.2)
     assertEq(early.ultGrade:GetText(), "short34", "icons made before the hook get labels too")
     icon.data = { Type = "complete", Id = 33 } -- recycled for a turn-in
     icon:UpdateTexture()
-    assertFalse(icon.ultGrade.shown)
+    assertFalse(icon.ultGrade.shown, "a recycled icon loses its label at once")
     icon.miniMapIcon, icon.data = nil, { Type = "available", Id = 33 } -- world map icon
     icon:UpdateTexture()
+    __advance(0.2)
     assertTrue(icon.ultGrade.shown, "the world map too")
     ns.db.questGrades.surfaces.worldMap = false
     icon:UpdateTexture()
     assertFalse(icon.ultGrade.shown, "world map has its own switch")
     early:UpdateTexture()
+    __advance(0.2)
     assertTrue(early.ultGrade.shown, "minimap unaffected")
     ns.db.questGrades.surfaces.worldMap = true
   end)
@@ -160,6 +169,7 @@ describe("Grade surfaces on Questie's minimap icons", function()
     assertFalse(icon.ultGrade.shown)
     ns.db.questGrades.surfaces.minimap = true
     ns:Fire("ULT_SETTING_CHANGED", "questGrades.surfaces.minimap")
+    __advance(0.2)
     assertTrue(icon.ultGrade.shown)
   end)
 end)

@@ -142,19 +142,27 @@ end
 
 -- Questie map icons (minimap and world map) ---------------------------------------------------
 -- Questie's icons are frames named "QuestieFrame<N>" carrying data.Type and data.Id; it calls
--- each icon's UpdateTexture on every draw, so a post-hook there labels (or clears) recycled icons.
-S.icons = {}
+-- each icon's UpdateTexture on every draw. The post-hook there only clears a stale label and
+-- queues the icon: grading happens afterwards, a few icons at a time, never inside Questie's
+-- own drawing.
+S.icons, S.queue = {}, {}
+local BATCH, BATCH_DELAY = 15, 0.05
+
+local function iconQuest(icon)
+  local data = type(icon.data) == "table" and icon.data or nil
+  return data and data.Type == "available" and data.Id or nil
+end
+
+local function iconSurface(icon) return icon.miniMapIcon and "minimap" or "worldMap" end
 
 local function labelIcon(icon)
-  local data = type(icon.data) == "table" and icon.data or nil
-  local questId = data and data.Type == "available" and data.Id or nil
+  local questId = iconQuest(icon)
   if not icon.ultGrade then
     if not questId then return end
     icon.ultGrade = icon:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     icon.ultGrade:SetPoint("TOP", icon, "BOTTOM", 0, 1)
   end
-  local surface = icon.miniMapIcon and "minimap" or "worldMap"
-  local text = questId and surfaceOn(surface) and ns.QuestGradesModule:Badge(questId, nil, { short = true }) or nil
+  local text = questId and surfaceOn(iconSurface(icon)) and ns.QuestGradesModule:Badge(questId, nil, { short = true }) or nil
   if text then
     icon.ultGrade:SetText(text)
     icon.ultGrade:Show()
@@ -163,14 +171,44 @@ local function labelIcon(icon)
   end
 end
 
+local processing = false
+local function processQueue()
+  local done = 0
+  for icon in pairs(S.queue) do
+    S.queue[icon] = nil
+    ns.SafeCall(labelIcon, icon)
+    done = done + 1
+    if done >= BATCH then break end
+  end
+  if next(S.queue) then
+    C_Timer.After(BATCH_DELAY, processQueue)
+  else
+    processing = false
+  end
+end
+
+local function queueIcon(icon)
+  S.queue[icon] = true
+  if not processing then
+    processing = true
+    C_Timer.After(BATCH_DELAY, processQueue)
+  end
+end
+
+-- Cheap and synchronous: drop a label that no longer fits the icon, queue the rest.
+local function onIconDrawn(icon)
+  if icon.ultGrade and not (iconQuest(icon) and surfaceOn(iconSurface(icon))) then icon.ultGrade:Hide() end
+  if iconQuest(icon) and surfaceOn(iconSurface(icon)) then queueIcon(icon) end
+end
+
 local function hookIcon(icon)
   if type(icon) ~= "table" or S.icons[icon] or type(icon.UpdateTexture) ~= "function" then return end
   S.icons[icon] = true
-  hooksecurefunc(icon, "UpdateTexture", function(self) ns.SafeCall(labelIcon, self) end)
+  hooksecurefunc(icon, "UpdateTexture", function(self) ns.SafeCall(onIconDrawn, self) end)
 end
 
 function S:RefreshMinimap()
-  for icon in pairs(self.icons) do labelIcon(icon) end
+  for icon in pairs(self.icons) do onIconDrawn(icon) end
 end
 
 local function installMinimap()

@@ -7,7 +7,10 @@ local S = ns.GradeSurfaces
 local QG = ns.QuestGradesModule
 
 -- Grades come from the module; these tests only check where they land.
-QG.Badge = function(_, questId) return questId and ("badge" .. questId) or nil end
+QG.Badge = function(_, questId, _, opts)
+  if not questId then return nil end
+  return (opts and opts.short and "short" or "badge") .. questId
+end
 
 local function strip(fs) return fs and fs:GetText() end
 
@@ -112,5 +115,45 @@ describe("Grade surfaces", function()
     __fire("QUEST_DETAIL")
     ns:Fire("ULT_QUEST_GRADES_CHANGED")
     assertEq(ns.errorCount, errors, tostring(ns.lastError))
+  end)
+end)
+
+describe("Grade surfaces on Questie's minimap icons", function()
+  local created = 0
+  local function newIcon()
+    created = created + 1
+    local f = CreateFrame("Button", "QuestieFrame" .. created, UIParent)
+    f.UpdateTexture = function() end
+    return f
+  end
+  it("labels quests you can pick up with a short grade, on the minimap only", function()
+    local early = newIcon() -- made before Ultimate hooked in
+    QuestieLoader = { _modules = { QuestieFrame = { CreateIconFrame = function() return newIcon() end } } }
+    S.installed.minimap = nil
+    S:Install()
+    local icon = QuestieLoader._modules.QuestieFrame.CreateIconFrame(created + 1)
+    icon.miniMapIcon, icon.data = true, { Type = "available", Id = 33 }
+    icon:UpdateTexture()
+    assertEq(icon.ultGrade:GetText(), "short33")
+    assertTrue(icon.ultGrade.shown)
+    early.miniMapIcon, early.data = true, { Type = "available", Id = 34 }
+    early:UpdateTexture()
+    assertEq(early.ultGrade:GetText(), "short34", "icons made before the hook get labels too")
+    icon.data = { Type = "complete", Id = 33 } -- recycled for a turn-in
+    icon:UpdateTexture()
+    assertFalse(icon.ultGrade.shown)
+    icon.miniMapIcon, icon.data = nil, { Type = "available", Id = 33 } -- world map icon
+    icon:UpdateTexture()
+    assertFalse(icon.ultGrade.shown)
+  end)
+  it("follows the setting", function()
+    local icon = _G["QuestieFrame1"]
+    icon.miniMapIcon, icon.data = true, { Type = "available", Id = 34 }
+    ns.db.questGrades.surfaces.minimap = false
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.surfaces.minimap")
+    assertFalse(icon.ultGrade.shown)
+    ns.db.questGrades.surfaces.minimap = true
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.surfaces.minimap")
+    assertTrue(icon.ultGrade.shown)
   end)
 end)

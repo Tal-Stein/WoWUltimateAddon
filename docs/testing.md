@@ -100,6 +100,10 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] With GearQuestForever loaded, a quest whose reward is an upgrade shows G1–G5 and names
       the item in the tooltip. A quest with no gear reward shows G-. Without GearQuestForever,
       or before the item is cached, G? appears.
+- [ ] On the minimap, each "!" Questie shows for a quest you can pick up has a small label
+      under it, like "L4 G-" (no time). Turn-in "?" icons and world-map icons have none. The
+      label follows the icon as it moves and disappears with it. Unticking "On Questie's
+      minimap quest givers" removes the labels.
 - [ ] Hovering a "G?" says why: quest dialog not seen yet, item details loading, or
       GearQuestForever missing.
 - [ ] Accept a quest that offers gear. A second later, `/dump UltimateDB.logRewardsTrusted`

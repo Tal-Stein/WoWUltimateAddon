@@ -140,16 +140,62 @@ local function installTracker()
   hooksecurefunc(tracker, "Update", function() ns.SafeCall(S.RefreshTracker, S) end)
 end
 
+-- Questie minimap icons ---------------------------------------------------------------------
+-- Questie's icons are frames named "QuestieFrame<N>" carrying data.Type and data.Id; it calls
+-- each icon's UpdateTexture on every draw, so a post-hook there labels (or clears) recycled icons.
+S.icons = {}
+
+local function labelIcon(icon)
+  local data = type(icon.data) == "table" and icon.data or nil
+  local questId = icon.miniMapIcon and data and data.Type == "available" and data.Id or nil
+  if not icon.ultGrade then
+    if not questId then return end
+    icon.ultGrade = icon:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    icon.ultGrade:SetPoint("TOP", icon, "BOTTOM", 0, 1)
+  end
+  local text = questId and surfaceOn("minimap") and ns.QuestGradesModule:Badge(questId, nil, { short = true }) or nil
+  if text then
+    icon.ultGrade:SetText(text)
+    icon.ultGrade:Show()
+  else
+    icon.ultGrade:Hide()
+  end
+end
+
+local function hookIcon(icon)
+  if type(icon) ~= "table" or S.icons[icon] or type(icon.UpdateTexture) ~= "function" then return end
+  S.icons[icon] = true
+  hooksecurefunc(icon, "UpdateTexture", function(self) ns.SafeCall(labelIcon, self) end)
+end
+
+function S:RefreshMinimap()
+  for icon in pairs(self.icons) do labelIcon(icon) end
+end
+
+local function installMinimap()
+  local qf = questie("QuestieFrame")
+  if S.installed.minimap or not (qf and type(qf.CreateIconFrame) == "function") then return end
+  S.installed.minimap = true
+  -- Icons made before this point, then every new one (named by the frameId argument).
+  local i = 1
+  while _G["QuestieFrame" .. i] do hookIcon(_G["QuestieFrame" .. i]); i = i + 1 end
+  hooksecurefunc(qf, "CreateIconFrame", function(frameId)
+    ns.SafeCall(hookIcon, _G["QuestieFrame" .. tostring(frameId)])
+  end)
+end
+
 function S:Install()
   installDialog()
   installQuestLog()
   installTracker()
+  installMinimap()
 end
 
 function S:RefreshAll()
   self:RefreshDialog()
   self:RefreshQuestLog()
   self:RefreshTracker()
+  self:RefreshMinimap()
 end
 
 ns:On("PLAYER_LOGIN", S, function() S:Install() end)

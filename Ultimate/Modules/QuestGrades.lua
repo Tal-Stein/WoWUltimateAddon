@@ -244,7 +244,8 @@ local WARN = { elite = "WARN_ELITE", group = "WARN_GROUP", escort = "WARN_ESCORT
   travel = "WARN_TRAVEL" }
 
 -- Compact text for a quest title: "L4 G2 ~8m" or "★4 ~8m", with "!" when there are warnings.
-function QG:Badge(questId, ctx)
+-- opts.short: grades only (no time, no warnings), for small spots like minimap icons.
+function QG:Badge(questId, ctx, opts)
   local r = self:Grade(questId, ctx)
   if not r then return nil end
   local parts = {}
@@ -255,8 +256,9 @@ function QG:Badge(questId, ctx)
     parts[#parts + 1] = "L" .. gradeText(r.leveling)
     parts[#parts + 1] = "G" .. gradeText(r.gear)
   end
-  if o().show.time and r.seconds then parts[#parts + 1] = "~" .. minutes(r.seconds) .. "m" end
-  if o().show.warnings and #r.warnings > 0 then parts[#parts + 1] = "|cffff4040!|r" end
+  local short = opts and opts.short
+  if not short and o().show.time and r.seconds then parts[#parts + 1] = "~" .. minutes(r.seconds) .. "m" end
+  if not short and o().show.warnings and #r.warnings > 0 then parts[#parts + 1] = "|cffff4040!|r" end
   return table.concat(parts, " ")
 end
 
@@ -346,7 +348,7 @@ QG.def = ns.Modules:Register({
     mode = "separate", style = "balanced", weights = copy(G.PRESETS.balanced),
     scale = "fixed", range = 5, learn = true,
     show = { time = true, warnings = true },
-    surfaces = { dialog = true, questLog = true, tracker = true },
+    surfaces = { dialog = true, questLog = true, tracker = true, minimap = true },
   },
   OnEnable = function()
     ns.QuestTimes.estimateFor = function(questId)
@@ -404,6 +406,7 @@ function QG.def.BuildSettings(ctx)
   ctx:Checkbox("questGrades.surfaces.dialog", L.GRADE_SURFACE_DIALOG)
   ctx:Checkbox("questGrades.surfaces.questLog", L.GRADE_SURFACE_LOG)
   ctx:Checkbox("questGrades.surfaces.tracker", L.GRADE_SURFACE_TRACKER, L.GRADE_SURFACE_TRACKER_TIP)
+  ctx:Checkbox("questGrades.surfaces.minimap", L.GRADE_SURFACE_MINIMAP, L.GRADE_SURFACE_MINIMAP_TIP)
   ctx:Checkbox("questGrades.learn", L.GRADE_LEARN, L.GRADE_LEARN_TIP)
   ctx:Button(L.GRADE_RESET_TIMES, L.RESET, function() ns.QuestTimes:Reset(); QG:Invalidate() end)
 end

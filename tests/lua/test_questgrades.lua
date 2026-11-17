@@ -214,6 +214,19 @@ describe("QuestGrades module", function()
     assertTrue(string.find(short, "m", 1, true) == nil, short)
     assertTrue(string.find(short, "L", 1, true) ~= nil, short)
   end)
+  it("reports every step for each quest with /ult grades", function()
+    setup()
+    local lines = {}
+    local print = ns.Print
+    ns.Print = function(_, fmt, ...) lines[#lines + 1] = select("#", ...) > 0 and string.format(fmt, ...) or fmt end
+    SlashCmdList.ULTIMATE("grades")
+    ns.Print = print
+    local all = table.concat(lines, " | ")
+    assertTrue(string.find(all, "GearQuestForever", 1, true) ~= nil, all)
+    assertTrue(string.find(all, "418", 1, true) ~= nil, all)
+    assertTrue(string.find(all, "XP 1150", 1, true) ~= nil, all)
+    assertTrue(string.find(all, "drop 3", 1, true) ~= nil, all)
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

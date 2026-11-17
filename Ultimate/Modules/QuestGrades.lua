@@ -331,6 +331,42 @@ function QG:RequestInvalidate(kind)
   end)
 end
 
+-- /ult grades: what each step found, per quest in the log, so problems can be pinned down.
+function QG:Report()
+  local itemApi = (C_Item and C_Item.GetItemInfo) and "C_Item" or (GetItemInfo and "global") or "missing"
+  local trusted = ns.global and ns.global.logRewardsTrusted
+  ns:Print(string.format(L.GRADES_REPORT_HEADER,
+    ns.GearValue.available() and L.YES or L.NO, itemApi,
+    trusted == true and L.GRADES_LOG_TRUSTED or trusted == false and L.GRADES_LOG_UNTRUSTED or L.GRADES_LOG_UNCHECKED,
+    type(GetQuestLogChoiceInfo) == "function" and L.YES or L.NO,
+    tostring(playerLevel()), o().mode, o().scale))
+  local ids = {}
+  for id in pairs(ns.QuestIndex:Quests()) do ids[#ids + 1] = id end
+  table.sort(ids)
+  for _, id in ipairs(ids) do
+    local q = ns.QuestIndex:QuestInfo(id)
+    local r = rawFor(id)
+    local g = self:Grade(id)
+    local f = r.facts
+    local objs = {}
+    for _, ob in ipairs(f and f.objectives or {}) do
+      local part = ob.kind .. " " .. tostring(ob.count or "?")
+      if ob.kind == "drop" then part = part .. " @" .. (ob.rate and string.format("%.0f%%", ob.rate) or "?%") end
+      objs[#objs + 1] = part
+    end
+    local seen = rememberedRewards(id)
+    local logged = self:LogRewardLinks(id)
+    local gear = g and g.gear
+    ns:Print(string.format(L.GRADES_REPORT_LINE, id, q and q.title or "?",
+      f and "" or L.GRADES_NO_FACTS,
+      tostring(r.xp or "?"), #objs > 0 and table.concat(objs, ", ") or "-",
+      r.estimate and tostring(r.estimate) or "?",
+      seen and tostring(#seen) or "-", logged and tostring(#logged) or "-",
+      tostring(g and g.leveling or "?"), tostring(gear or "?"), tostring(r.gearWhy or "")))
+  end
+  if #ids == 0 then ns:Print(L.GRADES_NONE) end
+end
+
 local STYLES = {
   { value = "balanced", label = L.GRADE_STYLE_BALANCED },
   { value = "speed", label = L.GRADE_STYLE_SPEED },

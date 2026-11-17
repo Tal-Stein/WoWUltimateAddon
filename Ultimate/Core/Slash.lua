@@ -17,6 +17,13 @@ local commands = {
     ns:Print(L.POSITIONS_RESET)
   end,
   scan = function() ns:Fire("ULT_DEBUG_SCAN") end,
+  grades = function()
+    if ns.QuestGradesModule and ns.Modules:IsActive("questGrades") then
+      ns.QuestGradesModule:Report()
+    else
+      ns:Print(L.GRADES_OFF)
+    end
+  end,
   help = function() ns:Print(L.SLASH_HELP) end,
 }
 

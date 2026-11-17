@@ -101,7 +101,8 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       the item in the tooltip. A quest with no gear reward shows G-. Without GearQuestForever,
       or before the item is cached, G? appears.
 - [ ] On the minimap, each "!" Questie shows for a quest you can pick up has a small label
-      under it, like "L4 G-" (no time). Turn-in "?" icons and world-map icons have none. The
+      under it, like "L4 G-" (no time). Turn-in "?" icons have none. The world map shows the same labels;
+      "On Questie's world map quest givers" turns those off separately. The
       label follows the icon as it moves and disappears with it. Unticking "On Questie's
       minimap quest givers" removes the labels.
 - [ ] Hovering a "G?" says why: quest dialog not seen yet, item details loading, or

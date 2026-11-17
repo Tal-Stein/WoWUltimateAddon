@@ -348,7 +348,7 @@ QG.def = ns.Modules:Register({
     mode = "separate", style = "balanced", weights = copy(G.PRESETS.balanced),
     scale = "fixed", range = 5, learn = true,
     show = { time = true, warnings = true },
-    surfaces = { dialog = true, questLog = true, tracker = true, minimap = true },
+    surfaces = { dialog = true, questLog = true, tracker = true, minimap = true, worldMap = true },
   },
   OnEnable = function()
     ns.QuestTimes.estimateFor = function(questId)
@@ -407,6 +407,7 @@ function QG.def.BuildSettings(ctx)
   ctx:Checkbox("questGrades.surfaces.questLog", L.GRADE_SURFACE_LOG)
   ctx:Checkbox("questGrades.surfaces.tracker", L.GRADE_SURFACE_TRACKER, L.GRADE_SURFACE_TRACKER_TIP)
   ctx:Checkbox("questGrades.surfaces.minimap", L.GRADE_SURFACE_MINIMAP, L.GRADE_SURFACE_MINIMAP_TIP)
+  ctx:Checkbox("questGrades.surfaces.worldMap", L.GRADE_SURFACE_WORLDMAP, L.GRADE_SURFACE_WORLDMAP_TIP)
   ctx:Checkbox("questGrades.learn", L.GRADE_LEARN, L.GRADE_LEARN_TIP)
   ctx:Button(L.GRADE_RESET_TIMES, L.RESET, function() ns.QuestTimes:Reset(); QG:Invalidate() end)
 end

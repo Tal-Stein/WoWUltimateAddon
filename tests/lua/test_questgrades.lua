@@ -227,6 +227,24 @@ describe("QuestGrades module", function()
     assertTrue(string.find(all, "XP 1150", 1, true) ~= nil, all)
     assertTrue(string.find(all, "drop 3", 1, true) ~= nil, all)
   end)
+  it("warns about a quest that starts from an item drop", function()
+    setup()
+    db.item[5000] = { name = "Torn Note", npcDrops = { 1190 } }
+    QuestieLoader._modules.DropDB.GetItemDroprate = function(item, npc)
+      if item == 5000 then return { 3 } end
+      local r = ({ [1190] = 31, [1191] = 36 })[npc]
+      return item == 3172 and r and { r } or nil
+    end
+    db.quest[60] = { name = "A Torn Note", questLevel = 11, startedBy = { nil, nil, { 5000 } }, objectives = {} }
+    xp[60] = 500
+    local r = QG:Grade(60)
+    assertEq(r.warnings[1], "starter")
+    local found
+    for _, line in ipairs(QG:TooltipLines(60)) do
+      if string.find(line[1], "item drop (3%)", 1, true) then found = true end
+    end
+    assertTrue(found)
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

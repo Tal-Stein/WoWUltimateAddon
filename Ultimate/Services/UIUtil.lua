@@ -58,10 +58,13 @@ function UI.MakeMovable(frame, handle, store, isLocked, defaultPoint)
     if isLocked() or InCombatLockdown() then return end
     frame:StartMoving()
   end)
+  -- Combat can start mid-drag; a frame with secure children can't be dropped until it ends.
   handle:SetScript("OnDragStop", function()
-    frame:StopMovingOrSizing()
-    local point, _, relPoint, x, y = frame:GetPoint()
-    store.point = { point, relPoint, x, y }
+    ns.Combat:Run("ui.drop." .. tostring(frame), function()
+      frame:StopMovingOrSizing()
+      local point, _, relPoint, x, y = frame:GetPoint()
+      store.point = { point, relPoint, x, y }
+    end)
   end)
   local function place()
     frame:ClearAllPoints()

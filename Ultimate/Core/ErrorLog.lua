@@ -86,3 +86,24 @@ local function onAction(kind)
 end
 ns:On("ADDON_ACTION_BLOCKED", EL, onAction("blocked"))
 ns:On("ADDON_ACTION_FORBIDDEN", EL, onAction("forbidden"))
+
+-- Lua errors the game reports outside Ultimate's own guards (frame scripts, hooks): wrap the
+-- game's error handler like BugGrabber does. Only errors whose message or stack runs through
+-- Ultimate's files are recorded; every error is still passed on unchanged.
+local function mentionsUltimate(text)
+  text = tostring(text or "")
+  return string.find(text, "AddOns/Ultimate/", 1, true) or string.find(text, "AddOns\\Ultimate\\", 1, true)
+end
+
+if type(geterrorhandler) == "function" and type(seterrorhandler) == "function" then
+  EL.previousHandler = geterrorhandler()
+  seterrorhandler(function(msg, ...)
+    pcall(function()
+      local stack = debugstack and debugstack(3) or ""
+      if mentionsUltimate(msg) or mentionsUltimate(stack) then
+        EL:Record("lua", firstLine(msg), tostring(msg) .. "\n" .. stack)
+      end
+    end)
+    if EL.previousHandler then return EL.previousHandler(msg, ...) end
+  end)
+end

@@ -69,7 +69,9 @@ function InCombatLockdown() return __inCombat end
 __secret = {}
 function issecretvalue(v) return v ~= nil and __secret[v] == true end
 function print(...) end
-function geterrorhandler() return function(e) end end
+local __errorHandler = function(e) end
+function geterrorhandler() return __errorHandler end
+function seterrorhandler(fn) __errorHandler = fn end
 -- Post-hook like WoW's: hooksecurefunc([tbl,] name, fn). Missing targets are ignored here.
 function hooksecurefunc(a, b, c)
   local tbl, name, fn = a, b, c

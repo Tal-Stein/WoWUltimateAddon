@@ -10,7 +10,7 @@ local SLOTS = {
   INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 },
   INVTYPE_CHEST = { 5 }, INVTYPE_ROBE = { 5 }, INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 },
   INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 }, INVTYPE_HAND = { 10 }, INVTYPE_FINGER = { 11, 12 },
-  INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 }, INVTYPE_WEAPON = { 16, 17 },
+  INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 }, INVTYPE_WEAPON = { 16 },
   INVTYPE_2HWEAPON = { 16 }, INVTYPE_WEAPONMAINHAND = { 16 }, INVTYPE_WEAPONOFFHAND = { 17 },
   INVTYPE_HOLDABLE = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_RANGED = { 18 },
   INVTYPE_RANGEDRIGHT = { 18 }, INVTYPE_THROWN = { 18 }, INVTYPE_RELIC = { 18 },
@@ -24,7 +24,10 @@ end
 
 function GV.available() return scorer() ~= nil end
 
+-- nil while the item isn't loaded yet; otherwise GearQuestForever's score, where 0 is a real
+-- answer (it scores the base item, so random-suffix gear can come out at 0).
 local function score(cmp, itemId)
+  if not ns.Safe.read(GetItemInfo, itemId) then return nil end
   local ok, s = pcall(cmp.ScoreItemStats, cmp, { itemId = itemId })
   return ok and type(s) == "number" and s or 0
 end
@@ -49,14 +52,14 @@ function GV:BestUpgrade(itemLinks)
       sawGear = true
       if not cmp then return nil end
       local new = score(cmp, id)
-      if new <= 0 then return nil end
+      if not new then return nil end
       local old
       for _, slot in ipairs(slots) do
         local eq = ns.Safe.read(GetInventoryItemID, "player", slot)
         local s = 0
         if eq then
           s = score(cmp, eq)
-          if s <= 0 then return nil end
+          if not s then return nil end
         end
         if old == nil or s < old then old = s end
       end

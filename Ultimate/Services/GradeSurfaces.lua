@@ -44,13 +44,15 @@ local function setBadge(badge, questId, ctx, on)
 end
 
 -- Quest dialog -------------------------------------------------------------------------------
+-- The dialog's reward links; links = nil (unknown) while any of them is still loading.
 local function dialogContext()
   local links = {}
   for _, kind in ipairs({ "choice", "reward" }) do
     local count = ns.Safe.read(kind == "choice" and GetNumQuestChoices or GetNumQuestRewards) or 0
     for i = 1, count do
       local link = ns.Safe.read(GetQuestItemLink, kind, i)
-      if link then links[#links + 1] = link end
+      if not link then return { key = "dlg" } end
+      links[#links + 1] = link
     end
   end
   return { key = "dlg", links = links }
@@ -60,7 +62,9 @@ function S:RefreshDialog()
   if not self.dialog then return end
   local questId = self.dialogOpen and ns.Safe.read(GetQuestID) or nil
   if not questId or questId == 0 then self.dialog:Hide(); return end
-  setBadge(self.dialog, questId, dialogContext(), surfaceOn("dialog"))
+  local ctx = dialogContext()
+  if ctx.links then ns.QuestGradesModule:RememberRewards(questId, ctx.links) end
+  setBadge(self.dialog, questId, ctx, surfaceOn("dialog"))
 end
 
 local function installDialog()

@@ -87,9 +87,7 @@ describe("QuestGrades module", function()
   end)
   it("gives one grade from a playing style in unified mode", function()
     setup()
-    GetNumQuestLogChoices = function() return 0 end -- the quest rewards no gear: Gear "none"
-    GetNumQuestLogRewards = function() return 0 end
-    GetQuestLogItemLink = function() end
+    QG:RememberRewards(418, {}) -- the dialog showed no rewards: Gear "none"
     ns.db.questGrades.mode = "unified"
     ns.db.questGrades.style = "speed"
     ns:Fire("ULT_SETTING_CHANGED", "questGrades.style")
@@ -99,7 +97,7 @@ describe("QuestGrades module", function()
     local geary = QG:Grade(418).unified
     assertTrue(speedy and geary and speedy > geary, tostring(speedy) .. " vs " .. tostring(geary))
     assertEq(QG:Grade(418).gear, "none")
-    GetNumQuestLogChoices, GetNumQuestLogRewards, GetQuestLogItemLink = nil, nil, nil
+    ns.global.questRewards[418] = nil
   end)
   it("uses the custom weights", function()
     setup()
@@ -121,6 +119,16 @@ describe("QuestGrades module", function()
       if string.find(line[1], "XP", 1, true) then found = true end
     end
     assertTrue(found)
+  end)
+  it("shows '?' for a past estimate it doesn't have", function()
+    setup()
+    ns.global.questTimes = { [418] = { spent = 600 } }
+    local found
+    for _, line in ipairs(QG:TooltipLines(418)) do
+      if string.find(line[1], "est. ?", 1, true) then found = true end
+    end
+    assertTrue(found)
+    ns.global.questTimes = {}
   end)
   it("hides time when asked", function()
     setup()

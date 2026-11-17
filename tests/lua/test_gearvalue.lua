@@ -1,6 +1,11 @@
 local ns = __ns
 
-local scores, equipped, locs = {}, {}, {}
+local scores, equipped, locs, uncached = {}, {}, {}, {}
+GetItemInfo = function(id)
+  id = tonumber(id) or tonumber(string.match(tostring(id), "item:(%d+)"))
+  if uncached[id] then return nil end
+  return "Item"
+end
 GetItemInfoInstant = function(link)
   local id = tonumber(string.match(tostring(link), "item:(%d+)"))
   return id, nil, nil, locs[id]
@@ -13,7 +18,7 @@ local function link(id) return "|cffffffff|Hitem:" .. id .. "::::|h[Item]|h|r" e
 
 local function setup()
   GearQuest = { Compare = { ScoreItemStats = function(_, entry) return scores[entry.itemId] or 0 end } }
-  scores, equipped, locs = {}, {}, {}
+  scores, equipped, locs, uncached = {}, {}, {}, {}
 end
 
 describe("GearValue", function()
@@ -47,8 +52,20 @@ describe("GearValue", function()
   end)
   it("says nothing while an item isn't cached yet", function()
     setup()
-    locs[100] = "INVTYPE_HAND"
+    locs[100] = "INVTYPE_HAND"; uncached[100] = true
     assertNil(GV:BestUpgrade({ link(100) }))
+  end)
+  it("takes a score of 0 at face value once the item is loaded", function()
+    setup()
+    locs[100] = "INVTYPE_HAND"; scores[100] = 30
+    equipped[10] = 10 -- loaded, but GearQuestForever can't score it (e.g. a random-suffix item)
+    assertEq(GV:BestUpgrade({ link(100) }).oldScore, 0)
+  end)
+  it("compares a one-handed weapon with the main hand", function()
+    setup()
+    locs[100] = "INVTYPE_WEAPON"; scores[100] = 50
+    equipped[16] = 16; scores[16] = 40 -- a staff; the off-hand is empty
+    assertEq(GV:BestUpgrade({ link(100) }).oldScore, 40)
   end)
   it("needs GearQuestForever", function()
     setup()

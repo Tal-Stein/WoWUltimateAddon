@@ -36,23 +36,19 @@ local function baseline(level)
   return baselines[level]
 end
 
--- Reward links for a quest in the log (questID-based API; the open quest dialog passes its own).
-local function logRewardLinks(questId)
-  local links = {}
-  if not (ns.QuestIndex and ns.QuestIndex:QuestInfo(questId)) then return nil end
-  if type(GetNumQuestLogChoices) ~= "function" or type(GetQuestLogItemLink) ~= "function" then return nil end
-  local okC, choices = pcall(GetNumQuestLogChoices, questId, true)
-  local okR, rewards = pcall(GetNumQuestLogRewards, questId)
-  if not okC and not okR then return nil end
-  for i = 1, (okC and tonumber(choices) or 0) do
-    local ok, link = pcall(GetQuestLogItemLink, "choice", i, questId)
-    if ok and link then links[#links + 1] = link end
-  end
-  for i = 1, (okR and tonumber(rewards) or 0) do
-    local ok, link = pcall(GetQuestLogItemLink, "reward", i, questId)
-    if ok and link then links[#links + 1] = link end
-  end
-  return links
+-- Rewards seen on the quest dialog, remembered per quest (account-wide; quest rewards don't
+-- depend on the character). The log's own reward API can't be trusted to take a quest ID on
+-- this client, so quests only get a gear grade once their dialog has been seen.
+function QG:RememberRewards(questId, links)
+  if not questId or type(links) ~= "table" or not ns.global then return end
+  ns.global.questRewards = ns.global.questRewards or {}
+  ns.global.questRewards[questId] = links
+  self.raw, self.cache = {}, {}
+end
+
+local function rememberedRewards(questId)
+  local store = ns.global and ns.global.questRewards
+  return store and store[questId] or nil
 end
 
 -- Raw numbers for one quest: facts, estimate (with and without the personal multiplier), XP per
@@ -70,7 +66,8 @@ local function rawFor(questId, ctx)
     r.xp = facts.xp
     if r.xp and r.xp > 0 and r.seconds and r.seconds > 0 then r.xpm = r.xp / (r.seconds / 60) end
   end
-  local links = ctx and ctx.links or logRewardLinks(questId)
+  local links
+  if ctx then links = ctx.links else links = rememberedRewards(questId) end
   if links then
     local best = ns.GearValue:BestUpgrade(links)
     r.gearBest = best
@@ -211,7 +208,9 @@ function QG:TooltipLines(questId, ctx)
   else add(L.GRADE_GEAR_UNKNOWN, gold) end
   if r.seconds then add(string.format(L.GRADE_TIME, minutes(r.seconds))) else add(L.GRADE_TIME_UNKNOWN) end
   if r.took then
-    add(string.format(L.GRADE_TOOK, minutes(r.took), r.estimate and minutes(r.estimate) or 0))
+    local rec = ns.global and ns.global.questTimes and ns.global.questTimes[questId]
+    local est = rec and rec.estimate
+    add(string.format(L.GRADE_TOOK, minutes(r.took), est and tostring(minutes(est)) or "?"))
   else
     local spent = ns.QuestTimes and ns.QuestTimes:Spent(questId)
     if spent and spent >= 60 then add(string.format(L.GRADE_SPENT, minutes(spent))) end

@@ -24,6 +24,22 @@ describe("Grade surfaces", function()
     __fire("QUEST_FINISHED")
     assertFalse(S.dialog.shown)
   end)
+  it("remembers the dialog's rewards for the quest, but only when all of them are known", function()
+    QuestFrame = QuestFrame or CreateFrame("Frame", "QuestFrame", UIParent)
+    GetQuestID = function() return 418 end
+    GetNumQuestChoices = function() return 1 end
+    GetNumQuestRewards = function() return 0 end
+    GetQuestItemLink = function() return nil end -- still loading
+    ns.global.questRewards = {}
+    S:Install()
+    __fire("QUEST_DETAIL")
+    assertNil(ns.global.questRewards[418])
+    GetQuestItemLink = function() return "|Hitem:100|h[Gloves]|h" end
+    __fire("QUEST_DETAIL")
+    assertEq(ns.global.questRewards[418][1], "|Hitem:100|h[Gloves]|h")
+    GetNumQuestChoices = function() return 0 end
+    __fire("QUEST_FINISHED")
+  end)
   it("adds the grade to quest log titles after Blizzard updates them", function()
     local title = CreateFrame("Button", nil, UIParent)
     title.questID = 33

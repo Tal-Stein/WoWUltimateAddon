@@ -37,8 +37,8 @@ local function baseline(level)
 end
 
 -- Rewards seen on the quest dialog, remembered per quest (account-wide; quest rewards don't
--- depend on the character). The log's own reward API can't be trusted to take a quest ID on
--- this client, so quests only get a gear grade once their dialog has been seen.
+-- depend on the character). The quest log's own reward lookup is only used once it has proven
+-- itself: right after accepting a quest, its answer must match what the dialog just showed.
 function QG:RememberRewards(questId, links)
   if not questId or type(links) ~= "table" or not ns.global then return end
   ns.global.questRewards = ns.global.questRewards or {}
@@ -52,6 +52,63 @@ end
 local function rememberedRewards(questId)
   local store = ns.global and ns.global.questRewards
   return store and store[questId] or nil
+end
+
+-- Reward item IDs the quest log reports for a quest (questID-based API), or nil when unavailable.
+local function logRewardIds(questId)
+  if type(GetNumQuestLogChoices) ~= "function" or type(GetQuestLogChoiceInfo) ~= "function" then return nil end
+  local ids = {}
+  local okC, choices = pcall(GetNumQuestLogChoices, questId, true)
+  if not okC then return nil end
+  for i = 1, tonumber(choices) or 0 do
+    local ok, _, _, _, _, _, itemId = pcall(GetQuestLogChoiceInfo, i, questId)
+    if not (ok and itemId) then return nil end
+    ids[#ids + 1] = itemId
+  end
+  if type(GetNumQuestLogRewards) == "function" and type(GetQuestLogRewardInfo) == "function" then
+    local okR, rewards = pcall(GetNumQuestLogRewards, questId)
+    for i = 1, okR and tonumber(rewards) or 0 do
+      local ok, _, _, _, _, _, itemId = pcall(GetQuestLogRewardInfo, i, questId)
+      if not (ok and itemId) then return nil end
+      ids[#ids + 1] = itemId
+    end
+  end
+  return ids
+end
+
+-- Log reward links for a quest, only once the lookup has been verified against a dialog.
+function QG:LogRewardLinks(questId)
+  if not (ns.global and ns.global.logRewardsTrusted == true) then return nil end
+  if not (ns.QuestIndex and ns.QuestIndex:QuestInfo(questId)) then return nil end
+  local ids = logRewardIds(questId)
+  if not ids then return nil end
+  local links = {}
+  for i, id in ipairs(ids) do links[i] = "item:" .. id end
+  return links
+end
+
+local function idOf(link) return tonumber(string.match(tostring(link), "item:(%d+)")) end
+
+-- Right after accepting a quest, compare the log's answer with the dialog's. One mismatch and
+-- the log lookup is never trusted; a match (with at least one item) trusts it.
+function QG:VerifyLogRewards(questId)
+  local g = ns.global
+  local seen = rememberedRewards(questId)
+  if not g or g.logRewardsTrusted == false or not seen or #seen == 0 then return end
+  local ids = logRewardIds(questId)
+  if not ids then return end
+  local want = {}
+  for _, link in ipairs(seen) do
+    local id = idOf(link)
+    if id then want[id] = (want[id] or 0) + 1 end
+  end
+  local same = #ids == #seen
+  for _, id in ipairs(ids) do
+    if not want[id] or want[id] == 0 then same = false; break end
+    want[id] = want[id] - 1
+  end
+  g.logRewardsTrusted = same
+  self:InvalidateGear()
 end
 
 -- Raw numbers for one quest: facts, estimate (with and without the personal multiplier), XP per
@@ -87,10 +144,11 @@ local function rawFor(questId, ctx)
   if not r.gearDone then
     r.gearDone, r.gear, r.gearBest = true, nil, nil
     local links
-    if ctx then links = ctx.links else links = rememberedRewards(questId) end
+    if ctx then links = ctx.links else links = rememberedRewards(questId) or QG:LogRewardLinks(questId) end
+    r.gearWhy = links and nil or "dialog"
     if links then
-      local best = ns.GearValue:BestUpgrade(links)
-      r.gearBest = best
+      local best, why = ns.GearValue:BestUpgrade(links)
+      r.gearBest, r.gearWhy = best, why
       if best == false then r.gear = "none"
       elseif best then r.gear = G.gearFixed(best.newScore, best.oldScore) end
     end
@@ -226,7 +284,11 @@ function QG:TooltipLines(questId, ctx)
   elseif r.gear and r.gearBest then
     local pct = r.gearBest.oldScore > 0 and math.floor((r.gearBest.newScore / r.gearBest.oldScore - 1) * 100 + 0.5) or 100
     add(string.format(L.GRADE_GEAR_LINE, gradeText(r.gear), r.gearBest.link, pct), gold)
-  else add(L.GRADE_GEAR_UNKNOWN, gold) end
+  else
+    local why = rawFor(questId, ctx).gearWhy
+    add(why == "noscorer" and L.GRADE_GEAR_NOSCORER or why == "loading" and L.GRADE_GEAR_LOADING
+      or L.GRADE_GEAR_DIALOG, gold)
+  end
   if r.seconds then add(string.format(L.GRADE_TIME, minutes(r.seconds))) else add(L.GRADE_TIME_UNKNOWN) end
   if r.took then
     local rec = ns.global and ns.global.questTimes and ns.global.questTimes[questId]
@@ -297,13 +359,17 @@ QG.def = ns.Modules:Register({
     ns:On("PLAYER_LEVEL_UP", QG, full)
     ns:On("PLAYER_EQUIPMENT_CHANGED", QG, gear)
     ns:On("GET_ITEM_INFO_RECEIVED", QG, gear)
+    ns:On("QUEST_ACCEPTED", QG, function(_, a, b)
+      local questId = b or a
+      C_Timer.After(1, function() ns.SafeCall(QG.VerifyLogRewards, QG, questId) end)
+    end)
     ns:On("ULT_SETTING_CHANGED", QG, function(_, path)
       if path and path:find("^questGrades") then QG:Invalidate() end
     end)
     QG:Invalidate()
   end,
   OnDisable = function()
-    for _, e in ipairs({ "QUEST_LOG_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_EQUIPMENT_CHANGED",
+    for _, e in ipairs({ "QUEST_LOG_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_EQUIPMENT_CHANGED", "QUEST_ACCEPTED",
       "GET_ITEM_INFO_RECEIVED", "ULT_SETTING_CHANGED" }) do
       ns:Off(e, QG)
     end

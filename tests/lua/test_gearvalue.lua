@@ -53,7 +53,17 @@ describe("GearValue", function()
   it("says nothing while an item isn't cached yet", function()
     setup()
     locs[100] = "INVTYPE_HAND"; uncached[100] = true
-    assertNil(GV:BestUpgrade({ link(100) }))
+    local best, why = GV:BestUpgrade({ link(100) })
+    assertNil(best); assertEq(why, "loading")
+  end)
+  it("uses the namespaced item API when the old global is gone", function()
+    setup()
+    local old = GetItemInfo
+    GetItemInfo = nil
+    C_Item = { GetItemInfo = old }
+    locs[100] = "INVTYPE_HAND"; scores[100] = 50
+    assertEq(GV:BestUpgrade({ link(100) }).newScore, 50)
+    GetItemInfo, C_Item = old, nil
   end)
   it("takes a score of 0 at face value once the item is loaded", function()
     setup()
@@ -71,7 +81,8 @@ describe("GearValue", function()
     setup()
     GearQuest = nil
     locs[100] = "INVTYPE_HAND"; scores[100] = 50
-    assertNil(GV:BestUpgrade({ link(100) }))
+    local best, why = GV:BestUpgrade({ link(100) })
+    assertNil(best); assertEq(why, "noscorer")
     assertFalse(GV.available())
   end)
   it("ignores rewards that aren't gear", function()

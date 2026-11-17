@@ -43,7 +43,10 @@ function QG:RememberRewards(questId, links)
   if not questId or type(links) ~= "table" or not ns.global then return end
   ns.global.questRewards = ns.global.questRewards or {}
   ns.global.questRewards[questId] = links
-  self.raw, self.cache = {}, {}
+  self.cache = {}
+  for key, r in pairs(self.raw) do
+    if key == tostring(questId) then r.gearDone = nil end
+  end
 end
 
 local function rememberedRewards(questId)
@@ -53,28 +56,45 @@ end
 
 -- Raw numbers for one quest: facts, estimate (with and without the personal multiplier), XP per
 -- minute, gear result.
+-- Worked out once per refresh: the comparison set and the personal pace multiplier.
+local function candidates()
+  if not QG.cands then QG.cands = ns.QuestFacts:Candidates(o().range) end
+  return QG.cands
+end
+
+local function multiplier()
+  if not QG.mult then
+    QG.mult = (o().learn and ns.QuestTimes) and ns.QuestTimes:Multiplier() or 1
+  end
+  return QG.mult
+end
+
 local function rawFor(questId, ctx)
   local key = questId .. (ctx and ctx.key or "")
-  local hit = QG.raw[key]
-  if hit then return hit end
-  local facts = ns.QuestFacts:Get(questId)
-  local r = { facts = facts }
-  if facts then
-    r.estimate = G.estimateSeconds(facts, playerLevel())
-    local mult = (o().learn and ns.QuestTimes) and ns.QuestTimes:Multiplier() or 1
-    r.seconds = r.estimate and math.floor(r.estimate * mult + 0.5) or nil
-    r.xp = facts.xp
-    if r.xp and r.xp > 0 and r.seconds and r.seconds > 0 then r.xpm = r.xp / (r.seconds / 60) end
+  local r = QG.raw[key]
+  if not r then
+    local facts = ns.QuestFacts:Get(questId)
+    r = { facts = facts }
+    if facts then
+      r.estimate = G.estimateSeconds(facts, playerLevel())
+      r.seconds = r.estimate and math.floor(r.estimate * multiplier() + 0.5) or nil
+      r.xp = facts.xp
+      if r.xp and r.xp > 0 and r.seconds and r.seconds > 0 then r.xpm = r.xp / (r.seconds / 60) end
+    end
+    QG.raw[key] = r
   end
-  local links
-  if ctx then links = ctx.links else links = rememberedRewards(questId) end
-  if links then
-    local best = ns.GearValue:BestUpgrade(links)
-    r.gearBest = best
-    if best == false then r.gear = "none"
-    elseif best then r.gear = G.gearFixed(best.newScore, best.oldScore) end
+  -- Gear is redone on its own when items load or equipment changes.
+  if not r.gearDone then
+    r.gearDone, r.gear, r.gearBest = true, nil, nil
+    local links
+    if ctx then links = ctx.links else links = rememberedRewards(questId) end
+    if links then
+      local best = ns.GearValue:BestUpgrade(links)
+      r.gearBest = best
+      if best == false then r.gear = "none"
+      elseif best then r.gear = G.gearFixed(best.newScore, best.oldScore) end
+    end
   end
-  QG.raw[key] = r
   return r
 end
 
@@ -82,7 +102,7 @@ local function relativeOf(questId, ctx, field)
   local mine = rawFor(questId, ctx)[field]
   if mine == nil then return nil end
   local values = {}
-  for _, id in ipairs(ns.QuestFacts:Candidates(o().range)) do
+  for _, id in ipairs(candidates()) do
     local v = (id == questId) and mine or rawFor(id)[field]
     if v ~= nil then values[#values + 1] = v end
   end
@@ -132,7 +152,7 @@ function QG:Grade(questId, ctx)
     if score then
       if o().scale == "relative" then
         local values = {}
-        for _, id in ipairs(ns.QuestFacts:Candidates(o().range)) do
+        for _, id in ipairs(candidates()) do
           local s = id == questId and score or unifiedScoreOf(id, nil, levelingOf(id), rawFor(id).gear)
           if s then values[#values + 1] = s end
         end
@@ -219,19 +239,31 @@ function QG:TooltipLines(questId, ctx)
   return lines
 end
 
+-- Everything: quest facts, estimates, comparison set. (Baselines are per level and stay.)
 function QG:Invalidate()
-  self.cache, self.raw = {}, {}
-  baselines = {}
+  self.cache, self.raw, self.cands, self.mult = {}, {}, nil, nil
   if ns.QuestFacts then ns.QuestFacts:Invalidate() end
   ns:Fire("ULT_QUEST_GRADES_CHANGED")
 end
 
--- Coalesce bursts (QUEST_LOG_UPDATE, item info arriving) into one invalidation.
-local pending = false
-function QG:RequestInvalidate()
-  if pending then return end
-  pending = true
-  C_Timer.After(0.5, function() pending = false; QG:Invalidate() end)
+-- Only gear: items finished loading or equipment changed.
+function QG:InvalidateGear()
+  self.cache = {}
+  for _, r in pairs(self.raw) do r.gearDone = nil end
+  ns:Fire("ULT_QUEST_GRADES_CHANGED")
+end
+
+-- Coalesce bursts (QUEST_LOG_UPDATE, item info arriving) into one refresh after 0.5 s.
+local pending
+function QG:RequestInvalidate(kind)
+  local wasPending = pending
+  if kind == "full" or pending == "full" then pending = "full" else pending = "gear" end
+  if wasPending then return end
+  C_Timer.After(0.5, function()
+    local what = pending
+    pending = nil
+    if what == "full" then QG:Invalidate() else QG:InvalidateGear() end
+  end)
 end
 
 local STYLES = {
@@ -258,11 +290,12 @@ QG.def = ns.Modules:Register({
       local r = QG:Grade(questId)
       return r and r.estimate or nil
     end
-    local function soon() QG:RequestInvalidate() end
-    for _, e in ipairs({ "QUEST_LOG_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_EQUIPMENT_CHANGED",
-      "GET_ITEM_INFO_RECEIVED" }) do
-      ns:On(e, QG, soon)
-    end
+    local function full() QG:RequestInvalidate("full") end
+    local function gear() QG:RequestInvalidate("gear") end
+    ns:On("QUEST_LOG_UPDATE", QG, full)
+    ns:On("PLAYER_LEVEL_UP", QG, full)
+    ns:On("PLAYER_EQUIPMENT_CHANGED", QG, gear)
+    ns:On("GET_ITEM_INFO_RECEIVED", QG, gear)
     ns:On("ULT_SETTING_CHANGED", QG, function(_, path)
       if path and path:find("^questGrades") then QG:Invalidate() end
     end)

@@ -130,6 +130,28 @@ describe("QuestGrades module", function()
     assertTrue(found)
     ns.global.questTimes = {}
   end)
+  it("works out the comparison set once per refresh", function()
+    setup()
+    available[33] = true
+    ns.db.questGrades.scale = "relative"
+    ns.db.questGrades.mode = "unified"
+    QG:Invalidate()
+    local orig, calls = ns.QuestFacts.Candidates, 0
+    ns.QuestFacts.Candidates = function(...) calls = calls + 1; return orig(...) end
+    QG:Grade(418); QG:Grade(33); QG:Badge(418); QG:TooltipLines(33)
+    ns.QuestFacts.Candidates = orig
+    assertEq(calls, 1)
+  end)
+  it("re-checks only gear when an item finishes loading", function()
+    setup()
+    QG:Grade(418)
+    local orig, wiped = ns.QuestFacts.Invalidate, false
+    ns.QuestFacts.Invalidate = function(...) wiped = true; return orig(...) end
+    __fire("GET_ITEM_INFO_RECEIVED", 100, true)
+    __advance(0.6)
+    ns.QuestFacts.Invalidate = orig
+    assertFalse(wiped, "quest facts kept")
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

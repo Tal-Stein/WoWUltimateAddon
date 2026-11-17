@@ -138,6 +138,7 @@ function Frame:SetPoint(...)
   self.point = { ... }
 end
 function Frame:GetPoint() if self.point then return unpack(self.point) end end
+function Frame:SetMouseClickEnabled(on) self.mouseClickEnabled = on end
 -- Any other method is a recorded no-op.
 setmetatable(Frame, { __index = function(_, k) if type(k) == "string" and k:match("^%u") then return function(self, ...) end end end })
 

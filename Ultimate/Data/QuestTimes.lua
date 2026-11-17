@@ -1,7 +1,8 @@
 local ADDON, ns = ...
 
 -- How long quests actually take the player: online, not-AFK time while a quest is in the log,
--- split evenly between the quests active at that moment. Kept account-wide in UltimateDB.
+-- split evenly between the quests active at that moment. Running timers are per character
+-- (UltimateCharDB); finished records are account-wide (UltimateDB), since they measure pace.
 -- Only quests accepted while this runs are measured, so a record is always a full one.
 local QT = {}
 ns.QuestTimes = QT
@@ -16,23 +17,27 @@ local function enabled()
   return o ~= nil and o.learn ~= false
 end
 
+-- { questTimes = account records, questTimesActive = this character's running timers }
 local function store()
   local g = ns.global
-  if not g then return nil end
+  if not g or type(UltimateCharDB) ~= "table" then return nil end
   g.questTimes = g.questTimes or {}
-  g.questTimesActive = g.questTimesActive or {}
-  return g
+  UltimateCharDB.questTimesActive = UltimateCharDB.questTimesActive or {}
+  return { questTimes = g.questTimes, questTimesActive = UltimateCharDB.questTimesActive }
 end
 
 function QT:Tick(dt)
   if not enabled() or ns.Safe.read(UnitIsAFK, "player") then return end
   local g = store()
   if not g then return end
-  local n = 0
-  for _ in pairs(g.questTimesActive) do n = n + 1 end
-  if n == 0 then return end
-  local share = dt / n
-  for id, spent in pairs(g.questTimesActive) do g.questTimesActive[id] = spent + share end
+  local log = ns.QuestIndex and ns.QuestIndex:Quests() or {}
+  local ids = {}
+  for id in pairs(g.questTimesActive) do
+    if log[id] then ids[#ids + 1] = id end
+  end
+  if #ids == 0 then return end
+  local share = dt / #ids
+  for _, id in ipairs(ids) do g.questTimesActive[id] = g.questTimesActive[id] + share end
 end
 
 function QT:Spent(questId)
@@ -60,9 +65,8 @@ function QT:Multiplier()
 end
 
 function QT:Reset()
-  local g = ns.global
-  if not g then return end
-  g.questTimes, g.questTimesActive = {}, {}
+  if ns.global then ns.global.questTimes = {} end
+  if type(UltimateCharDB) == "table" then UltimateCharDB.questTimesActive = {} end
 end
 
 ns:On("QUEST_ACCEPTED", QT, function(_, a, b)

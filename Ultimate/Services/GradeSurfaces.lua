@@ -20,6 +20,8 @@ local function makeBadge(parent)
   f.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   f.text:SetPoint("LEFT", f, "LEFT", 0, 0)
   f:EnableMouse(true)
+  -- Hover shows the grade tooltip; clicks go through to the quest row underneath.
+  if f.SetMouseClickEnabled then f:SetMouseClickEnabled(false) end
   f:SetScript("OnEnter", function(self)
     if not (GameTooltip and self.questId) then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -30,6 +32,13 @@ local function makeBadge(parent)
   end)
   f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
   return f
+end
+
+-- Right after the text itself: Blizzard's and Questie's title strings span the whole row.
+local function placeAfterText(badge, fontString)
+  local width = fontString and fontString.GetStringWidth and fontString:GetStringWidth() or 0
+  badge:ClearAllPoints()
+  badge:SetPoint("LEFT", fontString, "LEFT", (tonumber(width) or 0) + 4, 0)
 end
 
 local function setBadge(badge, questId, ctx, on)
@@ -82,11 +91,8 @@ function S:RefreshQuestLog()
   local on = surfaceOn("questLog")
   for title in pool:EnumerateActive() do
     if type(title) == "table" and title.questID then
-      if not title.ultGrade then
-        title.ultGrade = makeBadge(title)
-        local anchor = title.Text or title
-        title.ultGrade:SetPoint("LEFT", anchor, "RIGHT", 4, 0)
-      end
+      if not title.ultGrade then title.ultGrade = makeBadge(title) end
+      placeAfterText(title.ultGrade, title.Text or title)
       setBadge(title.ultGrade, title.questID, nil, on)
     end
   end
@@ -109,16 +115,22 @@ function S:RefreshTracker()
   local pool = questie("TrackerLinePool")
   if not (pool and type(pool.ForEachQuestTitleLine) == "function") then return end
   local on = surfaceOn("tracker")
-  pool.ForEachQuestTitleLine(function(line)
+  local function visit(line)
     if type(line) ~= "table" then return end
-    local questId = type(line.Quest) == "table" and line.Quest.Id or nil
+    local questId = line.mode == "quest" and type(line.Quest) == "table" and line.Quest.Id or nil
     if not line.ultGrade then
       if not questId then return end
       line.ultGrade = makeBadge(line)
-      line.ultGrade:SetPoint("LEFT", line.label or line, "RIGHT", 4, 0)
     end
+    if questId then placeAfterText(line.ultGrade, line.label or line) end
     setBadge(line.ultGrade, questId, nil, on)
-  end)
+  end
+  -- Lines are pooled and reused for objectives and zones, so visit every line, not only titles.
+  if type(pool.GetHighestIndex) == "function" and type(pool.GetLine) == "function" then
+    for i = 1, tonumber(pool.GetHighestIndex()) or 0 do visit(pool.GetLine(i)) end
+  else
+    pool.ForEachQuestTitleLine(visit)
+  end
 end
 
 local function installTracker()

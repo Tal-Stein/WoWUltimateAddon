@@ -12,9 +12,18 @@ local function setup()
   ns.db.questGrades.learn = true
   QT:Reset()
   QT.estimateFor = function() return 100 end
+  ns.QuestIndex.quests = { [1] = {}, [2] = {} }
 end
 
 describe("QuestTimes", function()
+  it("times only quests in this character's log, kept per character", function()
+    setup()
+    __fire("QUEST_ACCEPTED", 1); __fire("QUEST_ACCEPTED", 3) -- 3 isn't in the log (left while the add-on was off)
+    QT:Tick(10)
+    assertEq(QT:Spent(1), 10)
+    assertEq(UltimateCharDB.questTimesActive[1], 10)
+    assertNil(ns.global.questTimesActive, "active timers aren't shared with alts")
+  end)
   it("splits online time between the quests active together", function()
     setup()
     __fire("QUEST_ACCEPTED", 1); __fire("QUEST_ACCEPTED", 2)

@@ -54,7 +54,7 @@ describe("Grade surfaces", function()
   it("adds the grade to Questie's tracker titles", function()
     local line = CreateFrame("Button", nil, UIParent)
     line.label = line:CreateFontString()
-    line.Quest = { Id = 418 }
+    line.mode, line.Quest = "quest", { Id = 418 }
     local tracker = { Update = function() end }
     QuestieLoader = { _modules = {
       QuestieTracker = tracker,
@@ -71,6 +71,27 @@ describe("Grade surfaces", function()
     line.Quest = nil
     tracker.Update()
     assertFalse(line.ultGrade.shown, "recycled line without a quest")
+  end)
+  it("clears badges on tracker lines reused for other things, and sits after the title text", function()
+    local line = CreateFrame("Button", nil, UIParent)
+    line.label = line:CreateFontString()
+    line.label.GetStringWidth = function() return 120 end
+    line.mode, line.Quest = "quest", { Id = 418 }
+    local tracker = { Update = function() end }
+    QuestieLoader = { _modules = {
+      QuestieTracker = tracker,
+      TrackerLinePool = { GetHighestIndex = function() return 1 end, GetLine = function() return line end,
+        ForEachQuestTitleLine = function(cb) if line.mode == "quest" then cb(line) end end },
+    } }
+    S.installed.tracker = nil
+    S:Install()
+    tracker.Update()
+    assertTrue(line.ultGrade.shown)
+    assertEq(line.ultGrade.point[4], 124, "just after the title text, not the label's full width")
+    assertEq(line.ultGrade.mouseClickEnabled, false, "clicks go through to the line")
+    line.mode = "objective"
+    tracker.Update()
+    assertFalse(line.ultGrade.shown)
   end)
   it("installs only once", function()
     local calls = 0

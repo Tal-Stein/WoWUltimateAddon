@@ -206,6 +206,13 @@ describe("QuestGrades module", function()
     GetNumQuestLogChoices, GetNumQuestLogRewards, GetQuestLogChoiceInfo = nil, nil, nil
     ns.global.logRewardsTrusted = nil
   end)
+  it("has a short badge for the minimap: grades only", function()
+    setup()
+    assertTrue(ns.db.questGrades.surfaces.minimap, "minimap on by default")
+    local short = QG:Badge(418, nil, { short = true })
+    assertTrue(string.find(short, "m", 1, true) == nil, short)
+    assertTrue(string.find(short, "L", 1, true) ~= nil, short)
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

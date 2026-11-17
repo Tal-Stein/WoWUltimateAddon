@@ -131,6 +131,25 @@ describe("Settings panel", function()
     slot1:SetValue(1) -- none disables slot 1
     assertFalse(ns.db.targeting.ranking[1].enabled)
   end)
+  it("each feature's page starts with its own enable switch and greys out when off", function()
+    for def in ns.Modules:Iterate() do
+      if def.BuildSettings then
+        local page = catByName(def.name)
+        local first = page.inits[1]
+        assertEq(first.kind, "checkbox", def.key .. ": first control is a checkbox")
+        assertEq(first.data.setting.var, "ULTIMATE_MODULE_PAGE_" .. def.key)
+        local other = page.inits[#page.inits]
+        assertTrue(other.predicate ~= nil, def.key .. ": other options depend on the switch")
+        first.data.setting:SetValue(false)
+        assertFalse(ns.Modules:IsActive(def.key))
+        assertFalse(other.predicate(), def.key .. ": options greyed while off")
+        assertFalse(registered.settings["ULTIMATE_MODULE_" .. def.key]:GetValue(), "main page agrees")
+        first.data.setting:SetValue(true)
+        assertTrue(ns.Modules:IsActive(def.key))
+        assertTrue(other.predicate())
+      end
+    end
+  end)
   it("opens to the root category", function()
     ns.OpenSettings()
     assertEq(registered.opened, catByName("Ultimate"):GetID())

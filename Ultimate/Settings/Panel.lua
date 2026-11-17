@@ -167,7 +167,16 @@ function Panel:Register()
   for def in ns.Modules:Iterate() do
     if def.BuildSettings then
       local c, l = Settings.RegisterVerticalLayoutSubcategory(root, def.name)
-      ns.SafeCall(def.BuildSettings, B.New(c, l))
+      local ctx = B.New(c, l)
+      local key = def.key
+      -- The feature's own on/off switch (same setting as on the main page); the rest of the page
+      -- greys out while it's off.
+      ctx:CheckboxFn("MODULE_PAGE_" .. key, string.format(L.ENABLE_FEATURE, def.name), def.description,
+        def.defaultEnabled ~= false,
+        function() return ns.Modules:IsEnabled(key) end,
+        function(v) ns.Modules:SetEnabled(key, v) end)
+      ctx:EnabledWhen(function() return ns.Modules:IsEnabled(key) end)
+      ns.SafeCall(def.BuildSettings, ctx)
     end
   end
 

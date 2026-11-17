@@ -1,0 +1,127 @@
+local ns = __ns
+
+UnitLevel = function(unit) if unit == "player" then return 11 end end
+__boot(nil, {})
+
+local QG = ns.QuestGradesModule
+local QI = ns.QuestIndex
+
+local db = { quest = {}, npc = {}, item = {} }
+local function getter(tbl) return { Get = function(id, field) return tbl[id] and tbl[id][field] end } end
+LibQuestieDB = {
+  RequireContract = function() return true end,
+  Quest = getter(db.quest), Npc = getter(db.npc), Item = getter(db.item),
+}
+
+local xp = {}
+local available = {}
+local function setup()
+  xp = { [418] = 1150, [33] = 400, [77] = 900 }
+  for k in pairs(available) do available[k] = nil end
+  QuestieLoader = { _modules = {
+    QuestXP = { db = { [418] = { 11, 1150 }, [500] = { 11, 1000 }, [501] = { 11, 1200 }, [33] = { 6, 400 } },
+      GetQuestLogRewardXP = function(_, id) return xp[id] end },
+    DropDB = { GetItemDroprate = function(item, npc)
+      local r = ({ [1190] = 31, [1191] = 36 })[npc]
+      return item == 3172 and r and { r } or nil
+    end },
+    AvailableQuests = { __availableQuests = available },
+  } }
+  GearQuest = nil
+  QI.dbChecked = nil
+  QI.quests = { [418] = { questID = 418, title = "Thelsamar Blood Sausages", objectives = {
+    { text = "Boar Intestines: 0/3", type = "item", finished = false, numFulfilled = 0, numRequired = 3 } } } }
+  db.quest[418] = { name = "Thelsamar Blood Sausages", questLevel = 11, objectives = { [3] = { { 3172, nil, 0 } } } }
+  db.quest[33] = { name = "Wolves", questLevel = 9, startedBy = { { 197 } }, objectives = { [1] = { { 299, nil, 0 } } } }
+  db.quest[77] = { name = "Unknown Drops", questLevel = 11, objectives = { [3] = { { 9999, nil, 0 } } } }
+  db.item[3172] = { name = "Boar Intestines", npcDrops = { 1190, 1191 } }
+  db.item[9999] = { name = "Mystery", npcDrops = { 1190 } }
+  db.npc[1190] = { name = "Mountain Boar", maxLevel = 11, zoneID = 38 }
+  db.npc[1191] = { name = "Mangy Mountain Boar", maxLevel = 15, zoneID = 38 }
+  db.npc[197] = { name = "Marshal", zoneID = 12 }
+  db.npc[299] = { name = "Young Wolf", maxLevel = 3, zoneID = 12 }
+  local o = ns.db.questGrades
+  o.mode, o.style, o.scale, o.learn = "separate", "balanced", "fixed", false
+  QG:Invalidate()
+end
+
+describe("QuestGrades module", function()
+  it("has the agreed defaults", function()
+    local o = ns.db.questGrades
+    assertEq(o.mode, "separate"); assertEq(o.scale, "fixed"); assertEq(o.style, "balanced")
+    assertEq(o.range, 5); assertTrue(o.learn)
+    assertTrue(o.surfaces.tracker); assertTrue(o.surfaces.questLog); assertTrue(o.surfaces.dialog)
+  end)
+  it("grades leveling on fixed bands", function()
+    setup()
+    local r = QG:Grade(418)
+    -- 9 kills of level-15 boars at 45 s + 90 s travel = 495 s; 1150 XP / 8.25 min = 139 XP/min;
+    -- baseline = median level-11 XP 1150 / 10 = 115 → ratio 1.21 → 4
+    assertEq(r.seconds, 495)
+    assertEq(r.leveling, 4)
+    assertNil(r.gear, "no GearQuestForever: unknown")
+  end)
+  it("says '–' when the quest gives no XP at your level", function()
+    setup()
+    xp[418] = 0
+    assertEq(QG:Grade(418).leveling, "none")
+  end)
+  it("says '?' rather than guessing", function()
+    setup()
+    local r = QG:Grade(77)
+    assertNil(r.seconds); assertNil(r.leveling)
+    assertTrue(string.find(QG:Badge(77), "?", 1, true) ~= nil)
+  end)
+  it("ranks relative to other options when asked", function()
+    setup()
+    available[33] = true
+    ns.db.questGrades.scale = "relative"
+    QG:Invalidate()
+    assertEq(QG:Grade(33).leveling, 5)
+    assertEq(QG:Grade(418).leveling, 1)
+  end)
+  it("gives one grade from a playing style in unified mode", function()
+    setup()
+    GetNumQuestLogChoices = function() return 0 end -- the quest rewards no gear: Gear "none"
+    GetNumQuestLogRewards = function() return 0 end
+    GetQuestLogItemLink = function() end
+    ns.db.questGrades.mode = "unified"
+    ns.db.questGrades.style = "speed"
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.style")
+    local speedy = QG:Grade(418).unified
+    ns.db.questGrades.style = "gear"
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.style")
+    local geary = QG:Grade(418).unified
+    assertTrue(speedy and geary and speedy > geary, tostring(speedy) .. " vs " .. tostring(geary))
+    assertEq(QG:Grade(418).gear, "none")
+    GetNumQuestLogChoices, GetNumQuestLogRewards, GetQuestLogItemLink = nil, nil, nil
+  end)
+  it("uses the custom weights", function()
+    setup()
+    ns.db.questGrades.mode = "unified"
+    ns.db.questGrades.style = "custom"
+    for k in pairs(ns.db.questGrades.weights) do ns.db.questGrades.weights[k] = 0 end
+    ns.db.questGrades.weights.difficulty = 100
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.weights.difficulty")
+    assertEq(QG:Grade(418).unified, 5, "solo-friendly is all that counts")
+  end)
+  it("shows a compact badge and a tooltip", function()
+    setup()
+    local badge = string.gsub(string.gsub(QG:Badge(418), "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+    assertTrue(string.find(badge, "L4", 1, true) ~= nil, badge)
+    assertTrue(string.find(badge, "G?", 1, true) ~= nil, badge)
+    assertTrue(string.find(badge, "8m", 1, true) ~= nil, badge)
+    local found
+    for _, line in ipairs(QG:TooltipLines(418)) do
+      if string.find(line[1], "XP", 1, true) then found = true end
+    end
+    assertTrue(found)
+  end)
+  it("hides time when asked", function()
+    setup()
+    ns.db.questGrades.show.time = false
+    ns:Fire("ULT_SETTING_CHANGED", "questGrades.show.time")
+    assertTrue(string.find(QG:Badge(418), "m", 1, true) == nil)
+    ns.db.questGrades.show.time = true
+  end)
+end)

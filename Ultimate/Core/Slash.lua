@@ -24,11 +24,20 @@ local commands = {
       ns:Print(L.GRADES_OFF)
     end
   end,
+  errors = function(arg)
+    if arg == "clear" then
+      ns.ErrorLog:Clear()
+      ns:Print(L.ERRORS_CLEARED)
+    else
+      ns.ErrorLog:Report()
+    end
+  end,
   help = function() ns:Print(L.SLASH_HELP) end,
 }
 
 SlashCmdList.ULTIMATE = function(msg)
-  local cmd = string.lower(strtrim(msg or ""))
-  local fn = commands[cmd] or commands.help
-  fn()
+  local text = string.lower(strtrim(msg or ""))
+  local cmd, arg = string.match(text, "^(%S*)%s*(.-)$")
+  local fn = commands[cmd or ""] or commands.help
+  fn(arg)
 end

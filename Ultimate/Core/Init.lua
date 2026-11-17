@@ -15,6 +15,7 @@ local function onError(err)
   ns.errorCount = ns.errorCount + 1
   local msg = tostring(err)
   ns.lastError = msg
+  if ns.ErrorLog then pcall(ns.ErrorLog.OnLuaError, msg) end
   if ns.db and ns.db.core and ns.db.core.debug and not seenErrors[msg] then
     seenErrors[msg] = true
     print("|cffff2020Ultimate error:|r " .. msg)

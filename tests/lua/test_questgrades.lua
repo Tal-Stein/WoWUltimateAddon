@@ -152,6 +152,24 @@ describe("QuestGrades module", function()
     ns.QuestFacts.Invalidate = orig
     assertFalse(wiped, "quest facts kept")
   end)
+  it("uses only characters the game's fonts have", function()
+    setup()
+    local function plain(text)
+      return not string.find((string.gsub(text, "|T.-|t", "")), "[\128-\255]")
+    end
+    xp[418] = 0
+    GetMaxPlayerLevel = function() return 11 end
+    QG:Invalidate()
+    for _, mode in ipairs({ "separate", "unified" }) do
+      ns.db.questGrades.mode = mode
+      QG:Invalidate()
+      for _, id in ipairs({ 418, 77 }) do
+        assertTrue(plain(QG:Badge(id)), mode .. " badge: " .. QG:Badge(id))
+        for _, line in ipairs(QG:TooltipLines(id)) do assertTrue(plain(line[1]), line[1]) end
+      end
+    end
+    GetMaxPlayerLevel = nil
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

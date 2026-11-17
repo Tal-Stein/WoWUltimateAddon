@@ -176,7 +176,7 @@ end
 
 local function gradeText(g)
   if g == nil then return "?" end
-  if g == "none" then return "–" end
+  if g == "none" then return "-" end
   return "|cff" .. COLORS[g] .. g .. "|r"
 end
 
@@ -191,7 +191,8 @@ function QG:Badge(questId, ctx)
   if not r then return nil end
   local parts = {}
   if o().mode == "unified" then
-    parts[#parts + 1] = "★" .. gradeText(r.unified)
+    -- Blizzard's star raid marker; the game's fonts have no star character.
+    parts[#parts + 1] = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t" .. gradeText(r.unified)
   else
     parts[#parts + 1] = "L" .. gradeText(r.leveling)
     parts[#parts + 1] = "G" .. gradeText(r.gear)

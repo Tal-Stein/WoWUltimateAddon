@@ -26,6 +26,7 @@ Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua
 Core\DB.lua
+Core\ErrorLog.lua
 Core\Modules.lua
 Core\Slash.lua
 Data\QuestIndex.lua

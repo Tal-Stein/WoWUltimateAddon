@@ -90,6 +90,11 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match
       still works.
 
+## Feature switches
+- [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest
+      grades) starts with "Enable <feature>". Unticking it turns the feature off, greys out
+      the rest of that page, and the switch on the main Ultimate page shows it off too.
+
 ## Quest Grades
 - [ ] Talking to a quest giver shows a badge at the top right of the quest dialog, like
       "L4 G- ~8m". Hovering it shows the tooltip: XP and minutes, XP/hour, gear line, time,

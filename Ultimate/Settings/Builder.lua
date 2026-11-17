@@ -21,6 +21,14 @@ local function set(path, value)
 end
 B.get, B.set = get, set
 
+-- Options added after this greys out (Blizzard's modify predicate) whenever fn() is false.
+function Ctx:EnabledWhen(fn) self.enabledWhen = fn end
+
+local function depend(ctx, init)
+  if ctx.enabledWhen and init and init.AddModifyPredicate then init:AddModifyPredicate(ctx.enabledWhen) end
+  return init
+end
+
 function Ctx:Header(text)
   self.layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text))
 end
@@ -32,7 +40,7 @@ end
 
 function Ctx:CheckboxFn(var, label, tooltip, defaultValue, getter, setter)
   local setting = self:Proxy(var, "Boolean", label, defaultValue, getter, setter)
-  return Settings.CreateCheckbox(self.cat, setting, tooltip)
+  return depend(self, Settings.CreateCheckbox(self.cat, setting, tooltip))
 end
 
 function Ctx:Checkbox(path, label, tooltip)
@@ -49,17 +57,17 @@ function Ctx:Slider(path, label, min, max, step, fmt, tooltip)
   if fmt and MinimalSliderWithSteppersMixin then
     options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, fmt)
   end
-  return Settings.CreateSlider(self.cat, setting, options, tooltip)
+  return depend(self, Settings.CreateSlider(self.cat, setting, options, tooltip))
 end
 
 -- Dropdown whose stored value is one of choices[i].value; the Settings value is the index.
 function Ctx:DropdownFn(var, label, tooltip, choicesFn, getter, setter, defaultIndex)
   local setting = self:Proxy(var, "Number", label, defaultIndex or 1, getter, setter)
-  return Settings.CreateDropdown(self.cat, setting, function()
+  return depend(self, Settings.CreateDropdown(self.cat, setting, function()
     local container = Settings.CreateControlTextContainer()
     for i, c in ipairs(choicesFn()) do container:Add(i, c.label) end
     return container:GetData()
-  end, tooltip)
+  end, tooltip))
 end
 
 local function indexOf(choices, value)
@@ -91,6 +99,7 @@ function Ctx:Keybinding(command, fallbackLabel)
   local index = bindingIndex(command)
   if index and CreateKeybindingEntryInitializer then
     local init = CreateKeybindingEntryInitializer(index, true)
+    depend(self, init)
     self.layout:AddInitializer(init)
     return init
   end
@@ -101,6 +110,7 @@ end
 
 function Ctx:Button(label, buttonText, onClick, tooltip)
   local init = CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, true)
+  depend(self, init)
   self.layout:AddInitializer(init)
   return init
 end

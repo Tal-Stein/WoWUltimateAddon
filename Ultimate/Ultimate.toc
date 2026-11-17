@@ -44,6 +44,7 @@ Services\Alerts.lua
 Services\MinimapButton.lua
 Modules\QuestTargeting.lua
 Modules\QuestGrades.lua
+Services\GradeSurfaces.lua
 Modules\RareScanner.lua
 Modules\QuestItems.lua
 Modules\FocusedChat.lua

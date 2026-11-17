@@ -170,6 +170,42 @@ describe("QuestGrades module", function()
     end
     GetMaxPlayerLevel = nil
   end)
+  it("says why gear is unknown", function()
+    setup()
+    local function gearLine(id)
+      for _, line in ipairs(QG:TooltipLines(id)) do
+        if string.find(line[1], "Gear", 1, true) then return line[1] end
+      end
+    end
+    assertTrue(string.find(gearLine(418), "quest dialog", 1, true) ~= nil, gearLine(418))
+  end)
+  it("trusts the quest log's rewards only after they match what the dialog showed", function()
+    setup()
+    ns.global.questRewards, ns.global.logRewardsTrusted = {}, nil
+    local logItems = { [418] = { 100 }, [33] = { 200 } }
+    GetNumQuestLogChoices = function(questID) return #(logItems[questID] or {}) end
+    GetNumQuestLogRewards = function() return 0 end
+    GetQuestLogChoiceInfo = function(i, questID)
+      local id = logItems[questID] and logItems[questID][i]
+      return "Item", 0, 1, 2, true, id
+    end
+    QG:RememberRewards(418, { "|cff1eff00|Hitem:100::::|h[Gloves]|h|r" })
+    QI.quests[33] = { questID = 33, title = "Wolves", objectives = {} }
+    assertNil(QG:LogRewardLinks(33), "not trusted yet")
+    __fire("QUEST_ACCEPTED", 418)
+    __advance(1.1)
+    assertTrue(ns.global.logRewardsTrusted)
+    QI.quests = { [33] = { questID = 33, title = "Wolves", objectives = {} } } -- the rebuilt log
+    assertEq(QG:LogRewardLinks(33)[1], "item:200")
+    logItems[418] = { 999 } -- disagrees with the dialog
+    ns.global.logRewardsTrusted = nil
+    __fire("QUEST_ACCEPTED", 418)
+    __advance(1.1)
+    assertEq(ns.global.logRewardsTrusted, false)
+    assertNil(QG:LogRewardLinks(33))
+    GetNumQuestLogChoices, GetNumQuestLogRewards, GetQuestLogChoiceInfo = nil, nil, nil
+    ns.global.logRewardsTrusted = nil
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

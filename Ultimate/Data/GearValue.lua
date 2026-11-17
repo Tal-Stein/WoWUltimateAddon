@@ -26,8 +26,14 @@ function GV.available() return scorer() ~= nil end
 
 -- nil while the item isn't loaded yet; otherwise GearQuestForever's score, where 0 is a real
 -- answer (it scores the base item, so random-suffix gear can come out at 0).
+-- Forever's client namespaces the item API; the old global can be missing.
+local function itemInfo(item)
+  local fn = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  return ns.Safe.read(fn, item)
+end
+
 local function score(cmp, itemId)
-  if not ns.Safe.read(GetItemInfo, itemId) then return nil end
+  if not itemInfo(itemId) then return nil end
   local ok, s = pcall(cmp.ScoreItemStats, cmp, { itemId = itemId })
   return ok and type(s) == "number" and s or 0
 end
@@ -41,7 +47,8 @@ local function instant(link)
 end
 
 -- itemLinks: reward links. Returns { link, newScore, oldScore } for the biggest gain,
--- false when no reward is equippable, nil when it can't be known (no scorer, uncached item).
+-- false when no reward is equippable, nil + reason when it can't be known yet:
+-- "noscorer" (GearQuestForever missing) or "loading" (item info not loaded yet).
 function GV:BestUpgrade(itemLinks)
   local best, sawGear = nil, false
   local cmp = scorer()
@@ -50,16 +57,16 @@ function GV:BestUpgrade(itemLinks)
     local slots = id and SLOTS[equipLoc]
     if slots then
       sawGear = true
-      if not cmp then return nil end
+      if not cmp then return nil, "noscorer" end
       local new = score(cmp, id)
-      if not new then return nil end
+      if not new then return nil, "loading" end
       local old
       for _, slot in ipairs(slots) do
         local eq = ns.Safe.read(GetInventoryItemID, "player", slot)
         local s = 0
         if eq then
           s = score(cmp, eq)
-          if not s then return nil end
+          if not s then return nil, "loading" end
         end
         if old == nil or s < old then old = s end
       end

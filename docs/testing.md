@@ -100,9 +100,12 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] With GearQuestForever loaded, a quest whose reward is an upgrade shows G1–G5 and names
       the item in the tooltip. A quest with no gear reward shows G-. Without GearQuestForever,
       or before the item is cached, G? appears.
-- [ ] *Verify* that `GetNumQuestLogChoices(questID, true)` and
-      `GetQuestLogItemLink("choice", i, questID)` work on Forever (gear for quests already in
-      the log). If they don't, log quests show G? while the dialog still grades gear.
+- [ ] Hovering a "G?" says why: quest dialog not seen yet, item details loading, or
+      GearQuestForever missing.
+- [ ] Accept a quest that offers gear. A second later, `/dump UltimateDB.logRewardsTrusted`
+      prints `true` (the quest log's reward lookup matched the dialog). From then on quests
+      already in your log get gear grades too. If it prints `false`, they keep "G?" until you
+      see their dialog at turn-in.
 - [ ] A quest whose item drops have no known drop rate shows "L?" and "Time: ?", not a guess.
 - [ ] `/ult` → Quest grades: switch Show to "One grade from my playing style". Badges become
       a star raid-marker icon and a number, like "(star)4 ~8m". Changing Style changes grades; Custom uses the six sliders.

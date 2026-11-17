@@ -173,3 +173,17 @@ describe("Grade surfaces on Questie's minimap icons", function()
     assertTrue(icon.ultGrade.shown)
   end)
 end)
+
+describe("Grade surfaces: map hooks are optional", function()
+  it("doesn't hook Questie's icons at all while both map labels are off", function()
+    local qf = { CreateIconFrame = function() end }
+    local original = qf.CreateIconFrame
+    QuestieLoader = { _modules = { QuestieFrame = qf } }
+    ns.db.questGrades.surfaces.minimap, ns.db.questGrades.surfaces.worldMap = false, false
+    S.installed.minimap = nil
+    S:Install()
+    assertTrue(qf.CreateIconFrame == original, "Questie's function left untouched")
+    assertNil(S.installed.minimap)
+    ns.db.questGrades.surfaces.minimap, ns.db.questGrades.surfaces.worldMap = true, true
+  end)
+end)

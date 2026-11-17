@@ -214,6 +214,9 @@ end
 local function installMinimap()
   local qf = questie("QuestieFrame")
   if S.installed.minimap or not (qf and type(qf.CreateIconFrame) == "function") then return end
+  -- With both map labels off, leave Questie's icons completely alone (takes effect on /reload).
+  local surfaces = opts() and opts().surfaces or {}
+  if surfaces.minimap == false and surfaces.worldMap == false then return end
   S.installed.minimap = true
   -- Icons made before this point, then every new one (named by the frameId argument).
   local i = 1

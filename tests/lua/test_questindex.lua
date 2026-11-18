@@ -97,6 +97,28 @@ describe("QuestIndex", function()
     QI:Rebuild()
     assertEq(QI:ByNpcId(40).quests[1].objIndex, 1)
   end)
+  it("ties a mob to its own objective, not one whose name merely contains it (Slimy Menace)", function()
+    setup()
+    log[2] = { title = "Slimy Menace", questID = 99128, isHeader = false, objectives = {
+      { text = "Murloc Streamrunners slain: 2/4", type = "monster", finished = false, numFulfilled = 2, numRequired = 4 },
+      { text = "Murloc slain: 7/7", type = "monster", finished = true, numFulfilled = 7, numRequired = 7 },
+    } }
+    db.quest[99128] = { name = "Slimy Menace", objectives = { [1] = { { 285, nil, 0 }, { 735, nil, 0 } } } }
+    db.npc[285] = { name = "Murloc" }
+    db.npc[735] = { name = "Murloc Streamrunner" }
+    QI:Rebuild()
+    assertNil(QI:ByNpcId(285), "all 7 Murlocs done: no longer a target")
+    local e = QI:ByNpcId(735)
+    assertTrue(e ~= nil, "Streamrunners still needed")
+    assertEq(#e.quests, 1)
+    assertEq(e.quests[1].objIndex, 1)
+    -- and the other way round
+    log[2].objectives[1] = { text = "Murloc Streamrunners slain: 4/4", type = "monster", finished = true, numFulfilled = 4, numRequired = 4 }
+    log[2].objectives[2] = { text = "Murloc slain: 3/7", type = "monster", finished = false, numFulfilled = 3, numRequired = 7 }
+    QI:Rebuild()
+    assertNil(QI:ByNpcId(735), "Streamrunners done")
+    assertEq(QI:ByNpcId(285).quests[1].objIndex, 2)
+  end)
   it("falls back to every objective of the type when nothing matches", function()
     setup()
     db.npc[40].name = "Renamed"

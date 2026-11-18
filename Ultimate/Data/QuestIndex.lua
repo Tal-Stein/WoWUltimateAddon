@@ -62,21 +62,42 @@ local function readLog()
   return quests
 end
 
+-- The thing an objective is about: "Murloc Streamrunners slain: 2/4" -> "murloc streamrunners".
+local function objectiveTarget(text)
+  local t = norm(text)
+  if not t then return nil end
+  t = string.gsub(t, ":%s*%d+%s*/%s*%d+%s*$", "")
+  t = string.gsub(t, "%s+slain$", "")
+  return t
+end
+
+-- The objective is exactly about this name (singular or a regular plural).
+local function namesMatch(target, name)
+  if not target or not name then return false end
+  if target == name or target == name .. "s" or target == name .. "es" then return true end
+  local last, stem = string.sub(name, -1), string.sub(name, 1, -2)
+  return (last == "f" and target == stem .. "ves") or (last == "y" and target == stem .. "ies")
+end
+
 -- Find which live objectives a DB objective refers to. QuestieDB tuples carry no objective index
 -- (the third/fourth slot is an icon), so match by text: the DB objective text when present,
--- else the NPC/item name, against the live objective text. Only if nothing matches, tie it to
--- every objective of that type.
+-- else the NPC/item name, against the live objective text. An exact name match wins, so
+-- "Murloc" belongs to "Murloc slain" and not to "Murloc Streamrunners slain"; otherwise the name
+-- appearing in the text counts. Only if nothing matches, tie it to every objective of that type.
 local function matchObjectives(quest, kind, ...)
   local result = {}
-  for i = 1, select("#", ...) do
-    local needle = norm((select(i, ...)))
-    if needle and needle ~= "" then
-      for idx, o in ipairs(quest.objectives) do
-        if o.type == kind and norm(o.text) and string.find(norm(o.text), needle, 1, true) then
-          result[#result + 1] = { idx, o }
+  for pass = 1, 2 do
+    for i = 1, select("#", ...) do
+      local needle = norm((select(i, ...)))
+      if needle and needle ~= "" then
+        for idx, o in ipairs(quest.objectives) do
+          local text = o.type == kind and norm(o.text)
+          local hit = text and (pass == 1 and namesMatch(objectiveTarget(o.text), needle)
+            or pass == 2 and string.find(text, needle, 1, true))
+          if hit then result[#result + 1] = { idx, o } end
         end
+        if #result > 0 then return result end
       end
-      if #result > 0 then return result end
     end
   end
   for idx, o in ipairs(quest.objectives) do

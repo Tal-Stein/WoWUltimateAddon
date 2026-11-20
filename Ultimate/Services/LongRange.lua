@@ -10,8 +10,9 @@ local L = ns.L
 local LR = { found = {}, scanning = false, stats = {} }
 ns.LongRange = LR
 
-local HOLD = 15   -- seconds a find stays listed after its last answer
-local REFRESH = 6 -- a find is asked about again after this long, well before it runs out
+local HOLD = 60   -- safety limit: a find never re-asked leaves after this long
+local REFRESH = 6 -- a find is re-asked after this long, ahead of the round of unfound names
+local MISSES = 2  -- a find leaves after this many unanswered re-asks in a row
 local FAILED_HOLD = 60 -- a name you clicked that targeted nothing stays off the list this long
 -- Self-check: every CANARY_EVERY-th question is about a name no unit can have. If the game
 -- answers that, its answers prove nothing, and the scan stops showing finds.
@@ -23,7 +24,7 @@ local function o() return ns.db.targeting end
 function LR.Enabled() return ns.db ~= nil and o().detection == "longRange" end
 
 function LR:Reset()
-  self.found, self.visible, self.pending, self.lastName, self.failed = {}, nil, nil, nil, {}
+  self.found, self.visible, self.pending, self.lastName, self.failed, self.misses = {}, nil, nil, nil, {}, {}
   self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0, canaries = 0 }
   self.unreliable = false
 end
@@ -98,6 +99,7 @@ local function answer(source)
     return true
   end
   p.answered = true
+  LR.misses[p.name] = nil
   if p.name == CANARY then
     if not LR.unreliable then
       LR.unreliable = true
@@ -121,31 +123,55 @@ end
 
 -- Ping the next name that no nameplate shows and that wasn't found recently: one per call, so
 -- any answer, during the call or just after, belongs to it.
+-- The last question's window has closed: if a find didn't answer its re-ask, count a miss;
+-- after MISSES in a row it leaves the list.
+function LR:Settle()
+  local p = self.pending
+  if not p or p.settled or pending() then return end
+  p.settled = true
+  if p.answered or p.name == CANARY or not self.found[p.name] then return end
+  self.misses[p.name] = (self.misses[p.name] or 0) + 1
+  if self.misses[p.name] >= MISSES then
+    self.found[p.name], self.misses[p.name] = nil, nil
+    if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
+  end
+end
+
 function LR:Ping(now)
   if not self.Enabled() or InCombatLockdown() or type(TargetUnit) ~= "function" then return end
   now = now or GetTime()
+  -- One question at a time, each with its full answer window, even once answered: a late or
+  -- repeated signal then still lands on its own question, never on the next name.
+  if pending() then return end
+  self:Settle()
   local visible = self.visible or plateNames()
-  local names = {}
+  local due, unfound = {}, {}
   for name in pairs(wantedNames()) do
     local at = self.found[name]
     local failedAt = self.failed[name]
     local suppressed = failedAt and GetTime() - failedAt < FAILED_HOLD
-    if not visible[name] and not suppressed and (not at or now - at >= REFRESH) then names[#names + 1] = name end
+    if not visible[name] and not suppressed then
+      if at and now - at >= REFRESH then due[#due + 1] = name
+      elseif not at then unfound[#unfound + 1] = name end
+    end
   end
-  if #names == 0 then return end
-  -- One question at a time, each with its full answer window, even once answered: a late or
-  -- repeated signal then still lands on its own question, never on the next name.
-  if pending() then return end
-  table.sort(names)
-  local pick = names[1]
-  for _, name in ipairs(names) do
-    if self.lastName and name > self.lastName then pick = name; break end
-  end
+  local pick
   if (self.stats.pings + 1) % CANARY_EVERY == 0 then
     pick = CANARY
     self.stats.canaries = self.stats.canaries + 1
-  else
+  elseif #due > 0 then
+    -- Re-ask the find that's been waiting longest, so the list follows the game's answers.
+    table.sort(due, function(a, b) return self.found[a] < self.found[b] end)
+    pick = due[1]
+  elseif #unfound > 0 then
+    table.sort(unfound)
+    pick = unfound[1]
+    for _, name in ipairs(unfound) do
+      if self.lastName and name > self.lastName then pick = name; break end
+    end
     self.lastName = pick
+  else
+    return
   end
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1

@@ -18,7 +18,8 @@ local FAILED_HOLD = 60 -- a name you clicked that targeted nothing stays off the
 -- answers that, its answers prove nothing, and the scan stops showing finds.
 local CANARY, CANARY_EVERY = "Ultimate Probe Qzxv", 10
 LR.CANARY = CANARY
-local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
+-- Answers only count during the call itself; the window just keeps one question at a time.
+local WINDOW = 0.05
 -- Right after a reload or zoning the game answers for any name, made-up ones included, for a
 -- while. So: no questions for WARMUP seconds, then nothing is shown until PASSES self-checks in a
 -- row stayed silent. A self-check that answers hides and forgets every find; the scan then
@@ -74,9 +75,11 @@ end
 -- After a click that tried to target `name` (a long-range find): did a living one get targeted?
 function LR.AfterClick(name)
   if not name then return end
-  local ok = ns.Safe.read(UnitExists, "target") and ns.Safe.read(UnitName, "target") == name
-    and not ns.Safe.read(UnitIsDead, "target")
-  if not ok then LR:ClickFailed(name) end
+  -- Failed: nothing got targeted, or only a dead one of that name. Some other mob being targeted
+  -- (e.g. the main button's fallback names) says nothing about this find.
+  local has = ns.Safe.read(UnitExists, "target")
+  local same = has and ns.Safe.read(UnitName, "target") == name
+  if not has or (same and ns.Safe.read(UnitIsDead, "target")) then LR:ClickFailed(name) end
 end
 
 -- You clicked a long-range find and nothing (alive) got targeted: the answers were probably from
@@ -160,7 +163,7 @@ end
 -- Is this forbidden-action notice the answer to our own ping? (The error log skips those.) The
 -- client may name the function "UNKNOWN()", so any Ultimate notice inside a ping's window counts.
 function LR.IsOwnAnswer(addon, func)
-  return addon == ADDON and pending() ~= nil
+  return addon == ADDON and LR.scanning == true
 end
 
 -- Ping the next name that no nameplate shows and that wasn't found recently: one per call, so
@@ -217,7 +220,7 @@ function LR:Ping(now)
     pick = CANARY
     self.stats.canaries = self.stats.canaries + 1
     self.sinceCheck = 0
-  elseif #due > 0 then
+  elseif #due > 0 and not (#unfound > 0 and self.newTurn) then
     -- Re-ask the find that's been waiting longest, so the list follows the game's answers.
     table.sort(due, function(a, b) return self.found[a] < self.found[b] end)
     pick = due[1]
@@ -231,13 +234,46 @@ function LR:Ping(now)
   else
     return
   end
+  -- Re-asks and new names take turns, so a long list of finds never stops new ones being found.
+  if pick ~= CANARY then self.newTurn = not self.newTurn end
   if pick ~= CANARY then self.sinceCheck = self.sinceCheck + 1 end
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1
-  self.pending.handle = LR.Probe()
+  -- The refusal is reported during the call (as RestedXP relies on). Only answers that arrive
+  -- while the call runs count, so nothing late can be credited to the wrong name.
+  -- TargetUnit is called from a Lua function, not handed to pcall directly: called from pcall
+  -- the client can't name it and reports "UNKNOWN()". While the call runs, the other frames
+  -- listening for the refusal (the game's warning popup among them) are switched off, so our
+  -- own refusal shows no popup and plays no sound; they're switched back on right after, so
+  -- every other warning still shows. No Blizzard table is written (that would spread taint).
+  local muted = LR.MuteOthers()
   self.scanning = true
-  pcall(TargetUnit, pick, true)
+  pcall(function() TargetUnit(pick, true) end)
   self.scanning = false
+  LR.Unmute(muted)
+end
+
+-- Frames other than ours registered for ADDON_ACTION_FORBIDDEN, switched off for one call.
+function LR.MuteOthers()
+  local frames = {}
+  if type(GetFramesRegisteredForEvent) == "function" then
+    local list = { pcall(GetFramesRegisteredForEvent, "ADDON_ACTION_FORBIDDEN") }
+    if list[1] then for i = 2, #list do frames[#frames + 1] = list[i] end end
+  elseif UIParent then
+    frames[1] = UIParent
+  end
+  local muted = {}
+  for _, f in ipairs(frames) do
+    if f ~= ns.eventFrame and type(f) == "table" and f.UnregisterEvent
+        and (not f.IsEventRegistered or f:IsEventRegistered("ADDON_ACTION_FORBIDDEN")) then
+      if pcall(f.UnregisterEvent, f, "ADDON_ACTION_FORBIDDEN") then muted[#muted + 1] = f end
+    end
+  end
+  return muted
+end
+
+function LR.Unmute(muted)
+  for _, f in ipairs(muted or {}) do pcall(f.RegisterEvent, f, "ADDON_ACTION_FORBIDDEN") end
 end
 
 ns:On("NAME_PLATE_UNIT_ADDED", LR, function(_, unit)
@@ -250,8 +286,11 @@ ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
   if addon == ADDON and p and not p.eventFunc then
     p.eventFunc = (LR.scanning and "" or "late:") .. tostring(func) -- for the diary
   end
-  if addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then
-    answer(LR.scanning and "events" or "lateEvents")
+  -- Only a notice that arrives during our own call is an answer. "UNKNOWN()" is accepted too,
+  -- in case the client can't name the function.
+  local f = tostring(func)
+  if addon == ADDON and (string.find(f, "TargetUnit", 1, true) or f == "UNKNOWN()") then
+    if LR.scanning then answer("events") else LR.stats.lateEvents = (LR.stats.lateEvents or 0) + 1 end
   end
 end)
 
@@ -320,7 +359,9 @@ function LR:InstallPopupGuard()
         local text = self.text or self.Text
         local mine = ADDON_ACTION_FORBIDDEN and string.format(ADDON_ACTION_FORBIDDEN, ADDON)
         if mine and text and text.GetText and text:GetText() == mine then
-          answer("popups")
+          -- Normally switched off during our call (see Ping); if it shows anyway it's ours, but
+          -- only one shown during the call itself counts as an answer.
+          if LR.scanning then answer("popups") else LR.stats.latePopups = (LR.stats.latePopups or 0) + 1 end
           LR.HideQuietly(self)
         end
       end)

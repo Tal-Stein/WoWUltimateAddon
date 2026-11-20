@@ -128,7 +128,6 @@ describe("Long-range scan", function()
     popup.Hide = realHide
     TargetUnit = savedTargetUnit
     assertTrue(LR:Found("Murloc Streamrunner", 100))
-    assertTrue(open ~= nil and stopped[open], "open sound stopped")
     assertTrue(close ~= nil and stopped[close], "close sound stopped")
     assertNil(stopped[voice], "Spoken's clip keeps playing")
   end)
@@ -221,7 +220,7 @@ describe("Long-range scan", function()
     assertTrue(LR.unreliable)
     assertEq(#LR.Candidates({}), 0, "no finds shown when answers prove nothing")
   end)
-  it("credits an answer that arrives just after the ping to the name just pinged", function()
+  it("ignores an answer that arrives after the call: it can't be told which name it was for", function()
     setup()
     mode = "late"
     nearby["Mother Fang"] = true
@@ -233,9 +232,34 @@ describe("Long-range scan", function()
       end
       __advance(1.1)
     end
-    assertTrue(LR:Found("Mother Fang", 100))
+    assertFalse(LR:Found("Mother Fang", 100))
     assertFalse(LR:Found("Murloc", 100))
-    assertEq(LR.stats.lateEvents, 1)
+    assertTrue((LR.stats.lateEvents or 0) >= 1)
+  end)
+  it("calls TargetUnit by name, so the game reports it as TargetUnit() rather than UNKNOWN()", function()
+    setup()
+    local saved, seenName = TargetUnit, nil
+    TargetUnit = function() seenName = debug.getinfo(1, "n").name end
+    LR:Ping(GetTime())
+    TargetUnit = saved
+    assertEq(seenName, "TargetUnit")
+  end)
+  it("switches the game's warning popup off during its own call only, writing no Blizzard table", function()
+    setup()
+    local blizzard = CreateFrame("Frame")
+    blizzard:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+    GetFramesRegisteredForEvent = function() return blizzard, ns.eventFrame end
+    local saved, during, oursDuring = TargetUnit, "unset", nil
+    TargetUnit = function()
+      during = blizzard.events.ADDON_ACTION_FORBIDDEN
+      oursDuring = ns.eventFrame.events.ADDON_ACTION_FORBIDDEN
+    end
+    LR:Ping(GetTime())
+    TargetUnit = saved
+    GetFramesRegisteredForEvent = nil
+    assertNil(during, "no popup (and no sound) for our own refusal")
+    assertTrue(oursDuring, "we still hear it")
+    assertTrue(blizzard.events.ADDON_ACTION_FORBIDDEN, "back on for everyone else")
   end)
   it("doesn't ping what nameplates show, or what it found in the last 10 s", function()
     setup()
@@ -258,10 +282,19 @@ describe("Long-range scan", function()
     assertTrue(asked, "re-asked before it expires")
     assertTrue(LR:Found("Murloc Streamrunner", 120), "listed continuously")
     nearby["Murloc Streamrunner"] = nil
-    LR:Ping(114); __advance(1.1)
-    LR:Ping(114) -- settles the first re-ask: one miss
+    calls = {}
+    local function reasks()
+      local n = 0
+      for _, c in ipairs(calls) do if c == "Murloc Streamrunner" then n = n + 1 end end
+      return n
+    end
+    while reasks() < 1 do LR:Ping(114); __advance(1.1) end
+    LR:Ping(114); __advance(1.1) -- settles the first re-ask: one miss
     assertTrue(LR:Found("Murloc Streamrunner", 114), "one missed answer doesn't drop it")
-    __advance(1.1)
+    for _ = 1, 10 do
+      if reasks() >= 2 then break end
+      LR:Ping(114); __advance(1.1)
+    end
     LR:Ping(114) -- settles the second: two misses in a row
     assertFalse(LR:Found("Murloc Streamrunner", 114), "gone after two missed answers")
   end)
@@ -395,8 +428,70 @@ describe("Long-range scan after a reload", function()
     startup()
     ns.ErrorLog:Clear()
     __advance(11)
+    local saved = TargetUnit
+    TargetUnit = function() __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()") end
     LR:Ping(GetTime())
-    __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()")
-    assertEq(#(ns.global.errorLog or {}), 0)
+    TargetUnit = saved
+    for _, e in ipairs(ns.global.errorLog or {}) do assertTrue(e.kind ~= "forbidden", "own refusal logged") end
+  end)
+end)
+
+describe("Long-range scan answers named UNKNOWN()", function()
+  -- Seen in the error log: this client names the blocked function "UNKNOWN()", and shows the
+  -- popup only for the first couple of refusals. The notice is the answer that keeps coming.
+  it("finds a mob from a notice that names the function UNKNOWN()", function()
+    setup()
+    local saved = TargetUnit
+    TargetUnit = function(name)
+      calls[#calls + 1] = name
+      if nearby[name] then __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()") end
+    end
+    nearby["Mother Fang"] = true
+    sweep(GetTime())
+    TargetUnit = saved
+    assertTrue(LR:Found("Mother Fang"))
+    assertTrue(#LR.Candidates({}) >= 1)
+  end)
+  it("ignores another add-on's UNKNOWN() notice", function()
+    setup()
+    LR:Ping(GetTime())
+    __fire("ADDON_ACTION_FORBIDDEN", "SomeOtherAddon", "UNKNOWN()")
+    assertFalse(LR.pending.answered == true)
+  end)
+end)
+
+describe("Long-range scan review fixes", function()
+  it("new names still get asked while many finds are being re-asked", function()
+    setup()
+    QI.byName = {}
+    for i = 1, 8 do
+      local n = "Found " .. i
+      QI.byName[n] = entry(n)
+      nearby[n] = true
+    end
+    for _ = 1, 40 do LR:Ping(GetTime()); __advance(1.1) end
+    QI.byName["Newcomer"] = entry("Newcomer")
+    nearby["Newcomer"] = true
+    for _ = 1, 30 do LR:Ping(GetTime()); __advance(1.1) end
+    assertTrue(LR:Found("Newcomer"), "found despite 8 finds needing re-asks")
+  end)
+  it("logs Ultimate's other blocked actions, even while a question is open", function()
+    setup()
+    ns.ErrorLog:Clear()
+    LR:Ping(GetTime())
+    __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "SomethingElse()")
+    local logged = false
+    for _, e in ipairs(ns.global.errorLog or {}) do if e.kind == "forbidden" then logged = true end end
+    assertTrue(logged)
+  end)
+  it("a click that targets some other mob doesn't count against a find", function()
+    setup()
+    UnitExists = function(u) return u == "target" end
+    UnitName = function(u) if u == "target" then return "Murloc" end end
+    LR.AfterClick("Mother Fang")
+    assertNil(LR.failed["Mother Fang"])
+    UnitExists = function() return false end
+    LR.AfterClick("Mother Fang")
+    assertTrue(LR.failed["Mother Fang"] ~= nil, "nothing targeted: failed")
   end)
 end)

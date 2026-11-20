@@ -9,7 +9,9 @@ local L = ns.L
 --     name is in the area around you, far beyond nameplate range;
 --   * a name answered during its own call is "nearby"; it stays listed while it keeps answering
 --     and drops after MATCH_TIMEOUT seconds without an answer;
---   * the "has been blocked" popup the refusal brings up is hidden and its sounds stopped.
+--   * the "has been blocked" popup the refusal brings up is hidden, its sounds muted;
+--   * not while you have a target: then a name that matches nothing would clear it, so the game
+--     refuses (answers) for every name. Finds are kept as they are until the target is cleared.
 -- Nothing is ever targeted. Found names feed the target bar until their nameplate shows; then
 -- the normal nameplate path (levels, filters, markers) takes over.
 local LR = { found = {}, scanning = nil, stats = {} }
@@ -59,27 +61,35 @@ local function shouldScan()
   return true
 end
 
--- Sound handles are sequential. A probe (started and stopped at once, never heard) marks
--- where the count stands, so the popup's own sounds can be stopped and nothing else.
-function LR.Probe()
-  if type(PlaySound) ~= "function" or type(StopSound) ~= "function" or not SOUNDKIT then return nil end
-  local ok, _, handle = pcall(PlaySound, SOUNDKIT.IG_MAINMENU_CLOSE, "SFX")
-  if not (ok and type(handle) == "number") then return nil end
-  pcall(StopSound, handle)
-  return handle
+-- The popup's open and close sounds (SOUNDKIT IG_MAINMENU_OPEN / _CLOSE: uEscapeScreenOpen.ogg
+-- and uEscapeScreenClose.ogg). Muted only while asking: everything happens inside the call, so
+-- no other sound (another add-on's, or the Escape menu's) is touched.
+LR.POPUP_SOUND_FILES = { 567490, 567464 }
+local function muteSounds(on)
+  local fn = on and MuteSoundFile or UnmuteSoundFile
+  if type(fn) ~= "function" then return end
+  for _, id in ipairs(LR.POPUP_SOUND_FILES) do pcall(fn, id) end
 end
+LR.MuteSounds = muteSounds
 
 -- One scan: ask about every wanted name. Calls are synchronous, so the refusal (and the popup
 -- it brings up) for each name arrives while LR.scanning holds that name.
 function LR:Scan(now)
   if not self.Enabled() or type(TargetUnit) ~= "function" or not shouldScan() then return end
   now = now or GetTime()
+  if ns.Safe.read(UnitExists, "target") then
+    -- Every name would answer now; keep the finds that were current as they are.
+    for name in pairs(self.found) do
+      if self:Found(name, now) then self.found[name] = now end
+    end
+    return
+  end
   local names = {}
   for name in pairs(wantedNames()) do names[#names + 1] = name end
   if #names > 0 then
     table.sort(names)
     self.stats.scans = self.stats.scans + 1
-    self.mark = self.Probe() -- sounds after this, during the scan, are the popup's
+    muteSounds(true)
     for _, name in ipairs(names) do
       self.scanning = name
       self.stats.calls = self.stats.calls + 1
@@ -87,7 +97,8 @@ function LR:Scan(now)
       -- client can't name it and reports "UNKNOWN()" instead of "TargetUnit()".
       pcall(function() TargetUnit(name, true) end)
     end
-    self.scanning, self.mark = nil, nil
+    self.scanning = nil
+    muteSounds(false)
   end
   -- Drop names that stopped answering.
   local changed = false
@@ -179,15 +190,9 @@ function LR.Candidates(mobs)
   return list
 end
 
--- The popup ("Ultimate has been blocked...") comes up during our call. Hide it then, and stop
--- the sounds started since the scan's mark: only the popup's own code ran in between.
+-- The popup ("Ultimate has been blocked...") comes up during our call: hide it at once.
 function LR.HideQuietly(popup)
   popup:Hide()
-  local after = LR.Probe()
-  if LR.mark and after and after - LR.mark <= 8 then
-    for h = LR.mark + 1, after - 1 do pcall(StopSound, h) end
-  end
-  LR.mark = after
 end
 
 function LR:InstallPopupGuard()
@@ -228,10 +233,11 @@ function LR:SelfTest()
   local hasTarget = ns.Safe.read(UnitExists, "target") and true or false
   local result = {}
   self.testing = result
-  self.mark = self.Probe()
+  muteSounds(true)
   self.scanning = self.TEST_NAME
   pcall(function() TargetUnit(LR.TEST_NAME, true) end)
-  self.scanning, self.testing, self.mark = nil, nil, nil
+  self.scanning, self.testing = nil, nil
+  muteSounds(false)
   local answered = result.events or result.popups
   ns:Print(string.format(L.LONG_RANGE_TEST, hasTarget and L.YES or L.NO,
     answered and L.YES or L.NO, tostring(result.func or "-"), result.popups and L.YES or L.NO))

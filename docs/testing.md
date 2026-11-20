@@ -99,6 +99,9 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] No "Ultimate has been blocked from an action" popup appears while scanning, and nothing
       is ever targeted by itself. Other add-ons' warnings still appear.
 - [ ] `/ult errors` doesn't list the scan's own refusals.
+- [ ] A far-away entry for a mob you've seen up close before (nameplate, target or mouseover,
+      on any character) shows that mob's portrait on the target bar. A mob never seen up close
+      shows the quest or rare icon until it has been, once.
 - [ ] With "Nameplates only", mobs appear only with their nameplates, as before.
 - [ ] Nothing is scanned in combat.
 

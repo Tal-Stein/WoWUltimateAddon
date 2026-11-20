@@ -154,6 +154,10 @@ function Bar:UpdateVisuals()
         SetPortraitTexture(icon, unit)
         b.badge:SetTexture(iconFor(c))
         b.badge:Show()
+      elseif icon and opts().portraits ~= false and ns.Portraits and ns.Portraits:Apply(icon, c.name) then
+        -- No unit (e.g. a long-range find): the portrait remembered from an earlier sighting.
+        b.badge:SetTexture(iconFor(c))
+        b.badge:Show()
       else
         if icon then icon:SetTexture(iconFor(c)) end
         b.badge:Hide()

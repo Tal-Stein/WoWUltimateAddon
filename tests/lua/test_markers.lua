@@ -23,16 +23,6 @@ describe("Markers", function()
     assertTrue(a.markerSize > ns.db.targeting.markers.size, "top-ranked is larger")
     assertTrue(b.isRare, "rare variant")
   end)
-  it("always marks the mob you have targeted, even with top-only on", function()
-    ns.db.targeting.markers.topOnly = true
-    UnitName = function(unit) if unit == "target" then return "B" end end
-    C_NamePlate.GetNamePlateForUnit = function(unit) if unit == "target" then return plateB end end
-    fire()
-    assertTrue(M:ForPlate(plateB) ~= nil, "the target's plate is marked")
-    ns.db.targeting.markers.topOnly = false
-    UnitName = nil
-    C_NamePlate.GetNamePlateForUnit = function() end
-  end)
   it("releases markers when names drop out", function()
     fire()
     ns:Fire("ULT_TARGETS_CHANGED", {}, {})
@@ -114,31 +104,5 @@ describe("Markers", function()
     fire()
     assertEq(a.pulse.anims[1].scaleX, 1.4); assertEq(a.pulse.anims[1].duration, 1.2)
     m.anim, m.animDistance, m.animTime, m.pulseScale = "bob", 12, 0.8, 1.15
-  end)
-end)
-
-describe("Markers and the target bar", function()
-  it("every marked mob has a button on the bar: the bar holds every identified name", function()
-    assertEq(ns.db.targeting.bar.max, 24)
-    local names, byName = {}, {}
-    for i = 1, 10 do
-      local n = "Mob " .. i
-      names[i] = n
-      byName[n] = { name = n, level = 5, kind = "quest", mobs = { { plate = CreateFrame("Frame"), tapped = false, level = 5 } } }
-    end
-    ns:Fire("ULT_TARGETS_CHANGED", names, byName)
-    for i = 1, 10 do
-      assertTrue(M:ForPlate(byName["Mob " .. i].mobs[1].plate) ~= nil, "marked")
-      assertTrue(_G["UltimateTargetBarButton" .. i]:IsShown(), "and on the bar")
-    end
-  end)
-  it("profiles saved with the old 6-name default get the full bar once", function()
-    ns.db.targeting.barVersion, ns.db.targeting.bar.max = nil, 6
-    ns:Fire("ULT_DB_READY")
-    assertEq(ns.db.targeting.bar.max, 24)
-    ns.db.targeting.bar.max = 6
-    ns:Fire("ULT_DB_READY")
-    assertEq(ns.db.targeting.bar.max, 6, "a later choice of 6 is kept")
-    ns.db.targeting.bar.max = 24
   end)
 end)

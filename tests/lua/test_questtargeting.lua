@@ -143,26 +143,3 @@ describe("QuestTargeting review fixes", function()
     assertTrue(QI:ByName("Cave Rat") ~= nil)
   end)
 end)
-
-describe("QuestTargeting tooltip learning of finished objectives", function()
-  local function tooltip(objective)
-    return function() return { lines = {
-      { type = 0, leftText = "Murloc Tidehunter" },
-      { type = 17, leftText = "Kobold Camp" },
-      objective,
-    } } end
-  end
-  it("doesn't learn from an objective that reads 8/8, even without a completed flag", function()
-    reset()
-    QI.quests = { [100] = { questID = 100, title = "Kobold Camp", objectives = {
-      { text = "Murloc Tidehunter slain: 8/8", type = "monster", finished = true, numFulfilled = 8, numRequired = 8 },
-      { text = "Candles: 1/8", type = "item", finished = false, numFulfilled = 1, numRequired = 8 } } } }
-    Enum = { TooltipDataLineType = { QuestTitle = 17, QuestObjective = 8, QuestPlayer = 18 } }
-    C_TooltipInfo = { GetUnit = tooltip({ type = 8, leftText = "Murloc Tidehunter slain: 8/8" }) }
-    QT.LearnFromTooltip(mob({ npcId = 78, name = "Murloc Tidehunter" }))
-    assertNil(QI:ByName("Murloc Tidehunter"))
-    C_TooltipInfo = { GetUnit = tooltip({ type = 8, leftText = "Murloc Tidehunter slain: 3/8" }) }
-    QT.LearnFromTooltip(mob({ npcId = 78, name = "Murloc Tidehunter" }))
-    assertTrue(QI:ByName("Murloc Tidehunter") ~= nil, "an unfinished one still teaches")
-  end)
-end)

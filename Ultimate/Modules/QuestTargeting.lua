@@ -93,14 +93,6 @@ end
 -- Tooltip learning: a nameplate unit whose tooltip lists an unfinished objective of an open
 -- quest is recorded as relevant for this session. Rate limited.
 local learnBudget, learnWindow = 0, 0
-
--- Is this tooltip objective line done? The completed flag when the game gives one; otherwise
--- the progress it reads ("... 8/8" is done).
-function QT.ObjectiveDone(line, text)
-  if ns.Safe.read(function() return line.completed end) == true then return true end
-  local have, need = string.match(type(text) == "string" and text or "", "(%d+)%s*/%s*(%d+)")
-  return have ~= nil and tonumber(have) >= tonumber(need)
-end
 function QT.LearnFromTooltip(mob)
   if not (C_TooltipInfo and C_TooltipInfo.GetUnit and Enum and Enum.TooltipDataLineType) then return end
   if not mob.unit or not mob.name or QI:ByName(mob.name) then return end
@@ -117,7 +109,7 @@ function QT.LearnFromTooltip(mob)
     local text = ns.Safe.read(function() return line.leftText end)
     if kind == types.QuestTitle and type(text) == "string" then
       questID = QI:QuestIdByTitle(text)
-    elseif kind == types.QuestObjective and questID and not QT.ObjectiveDone(line, text) then
+    elseif kind == types.QuestObjective and questID and not ns.Safe.read(function() return line.completed end) then
       if QI:Learn(mob.name, questID) then return true end
     end
   end

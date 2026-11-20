@@ -96,12 +96,6 @@ describe("Targeting", function()
     ns.db.targeting.marker = 0
     T:UnregisterProvider("p")
   end)
-  it("keeps the far-away flag of long-range finds when merging", function()
-    T:RegisterProvider("far", function() return { cand("Murloc", nil, 2, { farAway = true }) } end)
-    T:Refresh()
-    assertTrue(T.byName.Murloc.farAway)
-    T:UnregisterProvider("far")
-  end)
   it("fires ULT_TARGETS_CHANGED with the ranking", function()
     local got
     ns:On("ULT_TARGETS_CHANGED", "t", function(_, ranked) got = ranked end)

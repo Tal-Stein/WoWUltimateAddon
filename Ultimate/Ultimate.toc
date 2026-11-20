@@ -35,11 +35,9 @@ Data\QuestFacts.lua
 Data\QuestTimes.lua
 Data\GearValue.lua
 Services\Nameplates.lua
-Services\Portraits.lua
 Services\UIUtil.lua
 Services\Menu.lua
 Services\Targeting.lua
-Services\LongRange.lua
 Services\TargetBar.lua
 Services\Markers.lua
 Services\Sounds.lua

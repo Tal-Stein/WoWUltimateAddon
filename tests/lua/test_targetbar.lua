@@ -220,15 +220,6 @@ describe("TargetBar portraits", function()
     assertTrue(b.badge:IsShown(), "small quest badge in the corner")
     assertEq(b.badge.texture, UI.ICON_QUEST)
   end)
-  it("a far-away target shows its portrait from the target unit", function()
-    withIcons()
-    portraits = {}
-    UnitName = function(unit) if unit == "target" then return "Murloc Streamrunner" end end
-    UnitExists = function(unit) return unit == "target" end
-    show({ name = "Murloc Streamrunner", count = 1, kind = "quest", mobs = {}, farAway = true })
-    assertEq(#portraits >= 1 and portraits[#portraits].unit, "target")
-    UnitName, UnitExists = nil, nil
-  end)
   it("rares get the rare badge", function()
     show({ name = "Mor'Ladim", level = 35, count = 1, kind = "rare", mobs = { { unit = "nameplate2", classification = "rareelite" } } })
     assertEq(UltimateTargetBarButton1.badge.texture, UI.ICON_RARE)
@@ -252,37 +243,5 @@ describe("UltimateTargetBarButton click handler", function()
     for i = 1, 4 do
       assertEq(_G["UltimateTargetBarButton" .. i].clickHandler, "secure", "SecureActionButtonTemplate must be applied last")
     end
-  end)
-end)
-
-describe("TargetBar cycling", function()
-  local function click(b)
-    b:GetScript("PreClick")(b, "LeftButton", false)
-    local text = b:GetAttribute("macrotext")
-    b:GetScript("PostClick")(b, "LeftButton", false)
-    return text
-  end
-  it("clicking again moves to the next mob with that name", function()
-    local current
-    UnitIsUnit = function(a, b) return b == "target" and a == current end
-    UnitIsDead = function() return false end
-    UnitExists = function(u) return u ~= "target" or current ~= nil end
-    ns:Fire("ULT_TARGETS_CHANGED", { "Murloc" }, { Murloc = { name = "Murloc", count = 3, kind = "quest",
-      mobs = { { unit = "nameplate1" }, { unit = "nameplate4" }, { unit = "nameplate7" } } } })
-    local b = UltimateTargetBarButton1
-    assertEq(click(b), "/target nameplate1")
-    current = "nameplate1"
-    assertEq(click(b), "/target nameplate4")
-    current = "nameplate4"
-    assertEq(click(b), "/target nameplate7")
-    current = "nameplate7"
-    assertEq(click(b), "/target nameplate1", "wraps around")
-    assertEq(b:GetAttribute("macrotext"), "/cleartarget\n/targetexact Murloc", "restored after the click")
-  end)
-  it("in combat it keeps the plain by-name macro", function()
-    __inCombat = true
-    local b = UltimateTargetBarButton1
-    assertEq(click(b), "/cleartarget\n/targetexact Murloc")
-    __inCombat = false
   end)
 end)

@@ -80,7 +80,6 @@ end)
 
 local function onAction(kind)
   return function(_, addon, func)
-    if kind == "forbidden" and ns.LongRange and ns.LongRange.IsOwnAnswer(addon, func) then return end -- our own scan
     EL:Record(kind, kind .. ":" .. tostring(addon) .. ":" .. tostring(func), nil,
       { addon = addon, func = func, inCombat = InCombatLockdown() and true or false })
   end

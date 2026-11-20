@@ -147,16 +147,3 @@ describe("QuestIndex", function()
     ns:Off("ULT_QUEST_INDEX_CHANGED", "t")
   end)
 end)
-
-describe("QuestIndex finished objectives stay finished", function()
-  it("a mob whose objective is done isn't re-added through tooltip learning", function()
-    setup()
-    QI:Rebuild()
-    -- "Done Mob" (npc 42) is the quest's finished objective; Questie knows it.
-    assertFalse(QI:Learn("Done Mob", 100), "known to the quest data, and done")
-    assertNil(QI:ByName("Done Mob"))
-    QI.learned["Done Mob"] = 100 -- learned earlier in the session, before it was finished
-    QI:Rebuild()
-    assertNil(QI:ByName("Done Mob"), "not brought back by an earlier learning")
-  end)
-end)

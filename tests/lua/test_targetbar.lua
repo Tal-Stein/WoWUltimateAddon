@@ -229,6 +229,24 @@ describe("TargetBar portraits", function()
     assertEq(#portraits >= 1 and portraits[#portraits].unit, "target")
     UnitName, UnitExists = nil, nil
   end)
+  it("a far-away entry whose click targets nothing is reported to the scan", function()
+    local failed
+    local orig = ns.LongRange.ClickFailed
+    ns.LongRange.ClickFailed = function(_, name) failed = name end
+    show({ name = "Murloc", count = 1, kind = "quest", mobs = {}, farAway = true })
+    UnitExists = function() return false end
+    local b = UltimateTargetBarButton1
+    b:GetScript("PostClick")(b, "LeftButton")
+    assertEq(failed, "Murloc")
+    failed = nil
+    UnitExists = function(u) return u == "target" end
+    UnitName = function(u) if u == "target" then return "Murloc" end end
+    UnitIsDead = function() return false end
+    b:GetScript("PostClick")(b, "LeftButton")
+    assertNil(failed, "a successful click is fine")
+    UnitExists, UnitName, UnitIsDead = nil, nil, nil
+    ns.LongRange.ClickFailed = orig
+  end)
   it("rares get the rare badge", function()
     show({ name = "Mor'Ladim", level = 35, count = 1, kind = "rare", mobs = { { unit = "nameplate2", classification = "rareelite" } } })
     assertEq(UltimateTargetBarButton1.badge.texture, UI.ICON_RARE)

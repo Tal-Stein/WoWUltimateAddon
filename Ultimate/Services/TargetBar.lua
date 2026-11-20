@@ -106,6 +106,13 @@ for i = 1, MAX_BUTTONS do
   b:HookScript("OnClick", function(self, button, down)
     if button == "RightButton" and not down then Bar.ShowMenu(self) end
   end)
+  -- A long-range find that targets nothing when clicked (corpses, out of reach) is dropped for
+  -- a while. PostClick runs after the secure macro, so the result is already visible.
+  b:HookScript("PostClick", function(self, button, down)
+    if button ~= "LeftButton" or down then return end
+    local c = Bar.byName and self.candidateName and Bar.byName[self.candidateName]
+    if c and c.farAway and #(c.mobs or {}) == 0 and ns.LongRange then ns.LongRange.AfterClick(c.name) end
+  end)
   b.level = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.level:SetPoint("TOPLEFT", 2, -2)
   b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")

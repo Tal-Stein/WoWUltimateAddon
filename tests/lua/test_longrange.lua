@@ -31,6 +31,7 @@ popup.text = popup:CreateFontString()
 
 local LR = ns.LongRange
 local QI = ns.QuestIndex
+QI.Rebuild = function() end -- these tests set the quest mobs directly; no quest log to rebuild from
 
 local function entry(name)
   return { name = name, npcIds = {}, quests = { { questID = 99128, title = "Slimy Menace", objIndex = 1,
@@ -47,9 +48,10 @@ local function setup()
   LR:InstallPopupGuard()
 end
 
--- Ping every eligible name once (one per call, as the ticker does).
+-- Ping every eligible name once (one per call, as the ticker does), letting each answer window
+-- close before the next ping.
 local function sweep(now)
-  for _ = 1, 5 do LR:Ping(now) end
+  for _ = 1, 5 do LR:Ping(now); __advance(1.1) end
 end
 
 describe("Long-range scan", function()
@@ -92,6 +94,27 @@ describe("Long-range scan", function()
     assertTrue(stopped[lastSound] and stopped[lastSound - 1] and stopped[lastSound - 2], "its sounds stopped")
     assertEq(LR.stats.popups, 1)
   end)
+  it("doesn't ask about the next name while the last answer may still come", function()
+    setup()
+    LR:Ping(100) -- nobody nearby: no answer yet
+    LR:Ping(100)
+    assertEq(#calls, 1, "waits for the answer window")
+    __advance(1.1)
+    LR:Ping(100)
+    assertEq(#calls, 2)
+  end)
+  it("drops a name you clicked when nothing could be targeted, for a minute", function()
+    setup()
+    nearby["Murloc"] = true -- e.g. only corpses: the game still answers
+    sweep(GetTime())
+    assertTrue(LR:Found("Murloc"))
+    LR:ClickFailed("Murloc")
+    sweep(GetTime())
+    assertFalse(LR:Found("Murloc"), "kept off the bar although it still answers")
+    __advance(61)
+    sweep(GetTime())
+    assertTrue(LR:Found("Murloc"), "back after a minute if it still answers")
+  end)
   it("credits an answer that arrives just after the ping to the name just pinged", function()
     setup()
     mode = "late"
@@ -102,6 +125,7 @@ describe("Long-range scan", function()
         pendingLate = nil
         __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()") -- delivered after the call
       end
+      __advance(1.1)
     end
     assertTrue(LR:Found("Mother Fang", 100))
     assertFalse(LR:Found("Murloc", 100))

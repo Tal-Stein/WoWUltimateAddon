@@ -12,13 +12,14 @@ ns.LongRange = LR
 
 local HOLD = 15   -- seconds a find stays listed after its last answer
 local REFRESH = 6 -- a find is asked about again after this long, well before it runs out
+local FAILED_HOLD = 60 -- a name you clicked that targeted nothing stays off the list this long
 local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
 
 local function o() return ns.db.targeting end
 function LR.Enabled() return ns.db ~= nil and o().detection == "longRange" end
 
 function LR:Reset()
-  self.found, self.visible, self.pending, self.lastName = {}, nil, nil, nil
+  self.found, self.visible, self.pending, self.lastName, self.failed = {}, nil, nil, nil, {}
   self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0 }
 end
 LR:Reset()
@@ -53,7 +54,26 @@ end
 function LR:Found(name, now)
   local at = self.found[name]
   now = now or GetTime()
+  local failedAt = self.failed[name]
+  if failedAt and GetTime() - failedAt < FAILED_HOLD then return false end
   return at ~= nil and now - at <= HOLD
+end
+
+-- After a click that tried to target `name` (a long-range find): did a living one get targeted?
+function LR.AfterClick(name)
+  if not name then return end
+  local ok = ns.Safe.read(UnitExists, "target") and ns.Safe.read(UnitName, "target") == name
+    and not ns.Safe.read(UnitIsDead, "target")
+  if not ok then LR:ClickFailed(name) end
+end
+
+-- You clicked a long-range find and nothing (alive) got targeted: the answers were probably from
+-- corpses or a mob out of reach. Keep that name off the list for a minute.
+function LR:ClickFailed(name)
+  if not name then return end
+  self.failed[name] = GetTime()
+  self.found[name] = nil
+  if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
 end
 
 -- The ping in flight, if its answer window is still open.
@@ -66,6 +86,7 @@ end
 local function answer(source)
   local p = pending()
   if not p then return false end
+  p.answered = true
   if not LR:Found(p.name, p.now) and ns.Targeting and ns.Targeting.RequestRefresh then
     ns.Targeting:RequestRefresh()
   end
@@ -88,9 +109,15 @@ function LR:Ping(now)
   local names = {}
   for name in pairs(wantedNames()) do
     local at = self.found[name]
-    if not visible[name] and (not at or now - at >= REFRESH) then names[#names + 1] = name end
+    local failedAt = self.failed[name]
+    local suppressed = failedAt and GetTime() - failedAt < FAILED_HOLD
+    if not visible[name] and not suppressed and (not at or now - at >= REFRESH) then names[#names + 1] = name end
   end
   if #names == 0 then return end
+  -- One question at a time: wait until the last one was answered or its window closed, so a
+  -- late answer can't be credited to the next name.
+  local open = pending()
+  if open and not open.answered then return end
   table.sort(names)
   local pick = names[1]
   for _, name in ipairs(names) do

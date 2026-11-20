@@ -132,6 +132,29 @@ describe("Long-range scan", function()
     assertFalse(LR:Found("Murloc Streamrunner"))
     assertFalse(LR.unreliable, "nor the made-up name")
   end)
+  it("with a big quest log, a find stays listed continuously and leaves only after two missed answers", function()
+    setup()
+    for i = 1, 30 do QI.byName["Mob " .. string.format("%02d", i)] = entry("Mob " .. i) end
+    nearby["Mob 15"] = true
+    local firstSeen
+    local gaps = 0
+    for _ = 1, 120 do -- 60 s of the ticker
+      LR:Ping(GetTime())
+      __advance(0.5)
+      if LR:Found("Mob 15") then firstSeen = firstSeen or GetTime()
+      elseif firstSeen then gaps = gaps + 1 end
+    end
+    assertTrue(firstSeen ~= nil, "found")
+    assertEq(gaps, 0, "never dropped while it keeps answering")
+    nearby["Mob 15"] = nil -- it's gone
+    local goneAt
+    for _ = 1, 60 do
+      LR:Ping(GetTime())
+      __advance(0.5)
+      if not LR:Found("Mob 15") then goneAt = goneAt or GetTime() end
+    end
+    assertTrue(goneAt ~= nil, "removed once it stops answering")
+  end)
   it("checks itself with a made-up name, and stops trusting answers if even that answers", function()
     setup()
     nearby["Murloc"] = true
@@ -186,9 +209,12 @@ describe("Long-range scan", function()
     assertTrue(asked, "re-asked before it expires")
     assertTrue(LR:Found("Murloc Streamrunner", 120), "listed continuously")
     nearby["Murloc Streamrunner"] = nil
-    sweep(114)
-    assertTrue(LR:Found("Murloc Streamrunner", 121), "one missed answer doesn't drop it")
-    assertFalse(LR:Found("Murloc Streamrunner", 123), "gone 15 s after its last answer")
+    LR:Ping(114); __advance(1.1)
+    LR:Ping(114) -- settles the first re-ask: one miss
+    assertTrue(LR:Found("Murloc Streamrunner", 114), "one missed answer doesn't drop it")
+    __advance(1.1)
+    LR:Ping(114) -- settles the second: two misses in a row
+    assertFalse(LR:Found("Murloc Streamrunner", 114), "gone after two missed answers")
   end)
   it("forgets a find once it stops answering", function()
     setup()

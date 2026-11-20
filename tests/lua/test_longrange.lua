@@ -49,6 +49,7 @@ local function setup()
   ns.db.rareScanner.watch = { ["Mother Fang"] = true }
   ns.db.targeting.detection = "longRange"
   LR:Reset()
+  LR.verified = true -- past the start-up self-check (tested on its own below)
   LR:InstallPopupGuard()
 end
 
@@ -288,5 +289,66 @@ describe("Long-range scan diary", function()
     for i = 1, 105 do LR:Diary("Mob " .. i, "events") end
     assertEq(#ns.global.scanDiary, 100)
     assertEq(ns.global.scanDiary[1].name, "Mob 6")
+  end)
+end)
+
+describe("Long-range scan after a reload", function()
+  -- Seen in the diary: right after a reload the game answered for every name, items and the
+  -- made-up self-check name included, and those showed up as targets that weren't there.
+  local function startup()
+    setup()
+    LR.verified = false
+    __fire("PLAYER_ENTERING_WORLD")
+  end
+  it("asks nothing during the warm-up", function()
+    startup()
+    for _ = 1, 8 do LR:Ping(GetTime()); __advance(1.1) end
+    assertEq(#calls, 0)
+  end)
+  it("asks the made-up name first, and shows nothing until two self-checks stayed quiet", function()
+    startup()
+    nearby["Murloc"] = true
+    __advance(11)
+    LR:Ping(GetTime())
+    assertEq(calls[1], LR.CANARY)
+    __advance(1.1)
+    LR:Ping(GetTime()); __advance(1.1) -- a name
+    assertEq(#LR.Candidates({}), 0, "one quiet self-check isn't enough")
+    for _ = 1, 6 do LR:Ping(GetTime()); __advance(1.1) end
+    assertTrue(LR.verified)
+    assertTrue(#LR.Candidates({}) >= 1)
+  end)
+  it("while the game answers for anything, nothing is shown; once it stops, finds come back", function()
+    startup()
+    for name in pairs(QI.byName) do nearby[name] = true end
+    nearby["Mother Fang"] = true
+    nearby[LR.CANARY] = true -- the start-up noise
+    __advance(11)
+    for _ = 1, 20 do
+      LR:Ping(GetTime()); __advance(1.1)
+      assertEq(#LR.Candidates({}), 0, "nothing shown while noisy")
+    end
+    nearby[LR.CANARY] = nil -- noise over
+    for _ = 1, 20 do LR:Ping(GetTime()); __advance(1.1) end
+    assertFalse(LR.unreliable)
+    assertTrue(#LR.Candidates({}) >= 1)
+  end)
+  it("a self-check that answers later forgets every find made before it", function()
+    startup()
+    nearby["Murloc"] = true
+    __advance(11)
+    for _ = 1, 10 do LR:Ping(GetTime()); __advance(1.1) end
+    assertTrue(LR:Found("Murloc"))
+    nearby[LR.CANARY] = true
+    for _ = 1, 12 do LR:Ping(GetTime()); __advance(1.1) end
+    assertEq(#LR.Candidates({}), 0)
+  end)
+  it("doesn't log its own refusals even when the game names the function UNKNOWN()", function()
+    startup()
+    ns.ErrorLog:Clear()
+    __advance(11)
+    LR:Ping(GetTime())
+    __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()")
+    assertEq(#(ns.global.errorLog or {}), 0)
   end)
 end)

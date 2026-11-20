@@ -19,6 +19,11 @@ local FAILED_HOLD = 60 -- a name you clicked that targeted nothing stays off the
 local CANARY, CANARY_EVERY = "Ultimate Probe Qzxv", 10
 LR.CANARY = CANARY
 local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
+-- Right after a reload or zoning the game answers for any name, made-up ones included, for a
+-- while. So: no questions for WARMUP seconds, then nothing is shown until PASSES self-checks in a
+-- row stayed silent. A self-check that answers hides and forgets every find; the scan then
+-- checks itself more often (every RECHECK_EVERY-th question) until it's quiet again.
+local WARMUP, PASSES, RECHECK_EVERY = 10, 2, 3
 
 local function o() return ns.db.targeting end
 function LR.Enabled() return ns.db ~= nil and o().detection == "longRange" end
@@ -27,6 +32,7 @@ function LR:Reset()
   self.found, self.visible, self.pending, self.lastName, self.failed, self.misses = {}, nil, nil, nil, {}, {}
   self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0, canaries = 0 }
   self.unreliable = false
+  self.verified, self.passes, self.warmUntil, self.sinceCheck = false, 0, nil, 0
 end
 LR:Reset()
 
@@ -100,8 +106,11 @@ function LR:Diary(name, source)
   ns.global.scanDiary = ns.global.scanDiary or {}
   local d = ns.global.scanDiary
   local e = { name = name, at = (time and time()) or 0, source = source, selfCheckOk = not self.unreliable,
-    pings = self.stats.pings }
+    pings = self.stats.pings, verified = self.verified }
   e.t = GetTime()
+  if self.enteredAt then e.sinceWorld = math.floor(e.t - self.enteredAt + 0.5) end
+  local p = self.pending
+  if p and p.eventFunc then e.eventFunc = p.eventFunc end
   d[#d + 1] = e
   while #d > DIARY_MAX do table.remove(d, 1) end
   self.openDiary[name] = e
@@ -130,11 +139,14 @@ local function answer(source)
   LR.misses[p.name] = nil
   if p.name ~= CANARY and not LR.found[p.name] then LR:Diary(p.name, source) end
   if p.name == CANARY then
+    LR.passes = 0
+    -- Every find so far came from the same untrustworthy answers: forget them all.
+    LR.found, LR.misses = {}, {}
     if not LR.unreliable then
       LR.unreliable = true
       if ns.ErrorLog then ns.ErrorLog:Record("scan", "canary", "The game answered for a made-up name; long-range finds are hidden.") end
-      if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
     end
+    if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
     return true
   end
   if not LR:Found(p.name, p.now) and ns.Targeting and ns.Targeting.RequestRefresh then
@@ -145,9 +157,10 @@ local function answer(source)
   return true
 end
 
--- Is this forbidden-action notice the answer to our own ping? (The error log skips those.)
+-- Is this forbidden-action notice the answer to our own ping? (The error log skips those.) The
+-- client may name the function "UNKNOWN()", so any Ultimate notice inside a ping's window counts.
 function LR.IsOwnAnswer(addon, func)
-  return addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) ~= nil and pending() ~= nil
+  return addon == ADDON and pending() ~= nil
 end
 
 -- Ping the next name that no nameplate shows and that wasn't found recently: one per call, so
@@ -158,7 +171,18 @@ function LR:Settle()
   local p = self.pending
   if not p or p.settled or pending() then return end
   p.settled = true
-  if p.answered or p.name == CANARY or not self.found[p.name] then return end
+  if p.name == CANARY then
+    if not p.answered then
+      -- A silent self-check: after PASSES in a row, answers are trusted (again).
+      self.passes = self.passes + 1
+      if self.passes >= PASSES and (self.unreliable or not self.verified) then
+        self.unreliable, self.verified = false, true
+        if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
+      end
+    end
+    return
+  end
+  if p.answered or not self.found[p.name] then return end
   self.misses[p.name] = (self.misses[p.name] or 0) + 1
   if self.misses[p.name] >= MISSES then
     self.found[p.name], self.misses[p.name] = nil, nil
@@ -169,6 +193,7 @@ end
 function LR:Ping(now)
   if not self.Enabled() or InCombatLockdown() or type(TargetUnit) ~= "function" then return end
   now = now or GetTime()
+  if self.warmUntil and GetTime() < self.warmUntil then return end
   -- One question at a time, each with its full answer window, even once answered: a late or
   -- repeated signal then still lands on its own question, never on the next name.
   if pending() then return end
@@ -185,9 +210,13 @@ function LR:Ping(now)
     end
   end
   local pick
-  if (self.stats.pings + 1) % CANARY_EVERY == 0 then
+  local checkEvery = (self.unreliable or not self.verified) and RECHECK_EVERY or CANARY_EVERY
+  if #due + #unfound == 0 and self.verified and not self.unreliable then return end
+  -- Until trusted, the self-check comes first and often; afterwards every CANARY_EVERY-th time.
+  if self.sinceCheck + 1 >= checkEvery or (not self.verified and self.passes == 0 and self.sinceCheck == 0) then
     pick = CANARY
     self.stats.canaries = self.stats.canaries + 1
+    self.sinceCheck = 0
   elseif #due > 0 then
     -- Re-ask the find that's been waiting longest, so the list follows the game's answers.
     table.sort(due, function(a, b) return self.found[a] < self.found[b] end)
@@ -202,6 +231,7 @@ function LR:Ping(now)
   else
     return
   end
+  if pick ~= CANARY then self.sinceCheck = self.sinceCheck + 1 end
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1
   self.scanning = true
@@ -215,6 +245,10 @@ ns:On("NAME_PLATE_UNIT_ADDED", LR, function(_, unit)
 end)
 
 ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
+  local p = pending()
+  if addon == ADDON and p and not p.eventFunc then
+    p.eventFunc = (LR.scanning and "" or "late:") .. tostring(func) -- for the diary
+  end
   if addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then
     answer(LR.scanning and "events" or "lateEvents")
   end
@@ -222,7 +256,7 @@ end)
 
 -- Target bar candidates for found names that no nameplate shows yet.
 function LR.Candidates(mobs)
-  if not LR.Enabled() or LR.unreliable then return {} end
+  if not LR.Enabled() or LR.unreliable or not LR.verified then return {} end
   local shown = {}
   for _, mob in ipairs(mobs or {}) do if mob.name then shown[mob.name] = true end end
   local list = {}
@@ -273,6 +307,15 @@ function LR:InstallPopupGuard()
     end
   end
 end
+
+-- Each reload or zone change starts a quiet warm-up and a fresh self-check.
+ns:On("PLAYER_ENTERING_WORLD", LR, function()
+  LR.enteredAt = GetTime()
+  LR.warmUntil = GetTime() + WARMUP
+  LR.found, LR.misses, LR.pending = {}, {}, nil
+  LR.verified, LR.passes, LR.sinceCheck = false, 0, 0
+  if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
+end)
 
 ns:On("PLAYER_LOGIN", LR, function()
   LR:InstallPopupGuard()

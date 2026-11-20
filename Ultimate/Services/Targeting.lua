@@ -32,6 +32,18 @@ button:RegisterForClicks("AnyUp", "AnyDown")
 button:SetAttribute("useOnKeyDown", false)
 button:Hide() -- clicked through its key binding or /click; never shown
 T.button = button
+-- The key's primary name, if it was a long-range find with no nameplate, must end up targeted
+-- (alive); otherwise the scan drops it for a while.
+button:HookScript("PreClick", function(_, _, down)
+  if not down then T.clicking = T.cursor:currentName() end
+end)
+button:HookScript("PostClick", function(_, _, down)
+  if down then return end
+  local name = T.clicking
+  T.clicking = nil
+  local c = name and T.byName and T.byName[name]
+  if c and c.farAway and #(c.mobs or {}) == 0 and ns.LongRange then ns.LongRange.AfterClick(name) end
+end)
 
 local function opts() return ns.db.targeting end
 
@@ -92,6 +104,7 @@ end
 local function mergeInto(base, c)
   base.isRare = base.isRare or c.isRare
   base.pinned = base.pinned or c.pinned
+  base.farAway = base.farAway or c.farAway -- a long-range find (no nameplate of its own)
   base.count = (base.count or 0) + (c.count or 0)
   if c.level and (not base.level or c.level < base.level) then base.level = c.level end
   if c.remaining and (not base.remaining or c.remaining < base.remaining) then base.remaining = c.remaining end

@@ -103,6 +103,16 @@ function LR.Candidates(mobs)
   return list
 end
 
+-- Showing and hiding the popup plays the menu open/close sounds, all within our ping. Sound
+-- handles are sequential, so play a probe sound and stop it plus the two before it (the
+-- popup's open and close) before they're heard. Same approach as RestedXP's scanner.
+function LR.SilenceLastSounds()
+  if type(PlaySound) ~= "function" or type(StopSound) ~= "function" or not SOUNDKIT then return end
+  local ok, _, handle = pcall(PlaySound, SOUNDKIT.IG_MAINMENU_CLOSE, "SFX")
+  if not (ok and type(handle) == "number") then return end
+  for h = handle - 2, handle do pcall(StopSound, h) end
+end
+
 -- The game shows "Ultimate has been blocked..." for every refusal. Hide that popup only right
 -- after one of our own pings; any other Ultimate problem (and every other add-on's) still shows,
 -- and Blizzard's handler stays registered.
@@ -115,7 +125,10 @@ function LR:InstallPopupGuard()
         if not (LR.lastPingAt and GetTime() - LR.lastPingAt <= POPUP_WINDOW) then return end
         local text = self.text or self.Text
         local mine = ADDON_ACTION_FORBIDDEN and string.format(ADDON_ACTION_FORBIDDEN, ADDON)
-        if mine and text and text.GetText and text:GetText() == mine then self:Hide() end
+        if mine and text and text.GetText and text:GetText() == mine then
+          self:Hide()
+          LR.SilenceLastSounds()
+        end
       end)
     end
   end

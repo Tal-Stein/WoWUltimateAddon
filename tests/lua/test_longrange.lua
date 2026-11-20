@@ -3,6 +3,7 @@ local ns = __ns
 -- The game refuses TargetUnit from add-ons, and reports the refusal (synchronously) only when a
 -- unit with that name is around. This stub does the same.
 local nearby, calls = {}, {}
+stopped, lastSound = {}, nil
 TargetUnit = function(name)
   calls[#calls + 1] = name
   if nearby[name] then __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()") end
@@ -89,8 +90,14 @@ describe("Long-range scan", function()
     __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()") -- not during a scan: real problem
     assertEq(#ns.global.errorLog, 1)
   end)
-  it("hides only the game's popup about its own scan", function()
+  it("hides only the game's popup about its own scan, silently", function()
     setup()
+    local nextHandle = 40
+    stopped, lastSound = {}, nil
+    SOUNDKIT = SOUNDKIT or {}
+    SOUNDKIT.IG_MAINMENU_CLOSE = SOUNDKIT.IG_MAINMENU_CLOSE or 851
+    PlaySound = function() nextHandle = nextHandle + 1; lastSound = nextHandle; return true, nextHandle end
+    StopSound = function(h) stopped[h] = true end
     ADDON_ACTION_FORBIDDEN = "%s has been blocked from an action only available to the Blizzard UI."
     local popup = CreateFrame("Frame", "StaticPopup1", UIParent)
     popup.text = popup:CreateFontString()
@@ -101,6 +108,8 @@ describe("Long-range scan", function()
     popup:Show()
     popup:GetScript("OnShow")(popup)
     assertFalse(popup.shown, "our scan's popup hidden")
+    assertTrue(stopped[lastSound] and stopped[lastSound - 1] and stopped[lastSound - 2],
+      "the popup's open and close sounds (and the probe) are stopped")
     popup.text:SetText(string.format(ADDON_ACTION_FORBIDDEN, "SomeOtherAddon"))
     popup:Show()
     popup:GetScript("OnShow")(popup)

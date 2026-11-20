@@ -266,6 +266,23 @@ describe("QuestGrades module", function()
     QG:Invalidate()
     assertEq(QG:Grade(123).unified, 5)
   end)
+  it("rescans on request: quest index rebuilt and every grade recalculated, memories kept", function()
+    setup()
+    QG:Grade(418)
+    ns.global.questRewards = { [418] = {} }
+    local rebuilt, invalidated = 0, 0
+    local rebuild, invalidate = QI.Rebuild, QG.Invalidate
+    QI.Rebuild = function(...) rebuilt = rebuilt + 1; return rebuild(...) end
+    QG.Invalidate = function(...) invalidated = invalidated + 1; return invalidate(...) end
+    local printed
+    local print = ns.Print
+    ns.Print = function(_, text) printed = text end
+    SlashCmdList.ULTIMATE("rescan")
+    ns.Print, QI.Rebuild, QG.Invalidate = print, rebuild, invalidate
+    assertEq(rebuilt, 1); assertTrue(invalidated >= 1)
+    assertTrue(ns.global.questRewards[418] ~= nil, "remembered rewards kept")
+    assertTrue(printed ~= nil)
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

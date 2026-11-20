@@ -461,4 +461,5 @@ function QG.def.BuildSettings(ctx)
   ctx:Checkbox("questGrades.surfaces.worldMap", L.GRADE_SURFACE_WORLDMAP, L.GRADE_SURFACE_WORLDMAP_TIP)
   ctx:Checkbox("questGrades.learn", L.GRADE_LEARN, L.GRADE_LEARN_TIP)
   ctx:Button(L.GRADE_RESET_TIMES, L.RESET, function() ns.QuestTimes:Reset(); QG:Invalidate() end)
+  ctx:Button(L.RESCAN, L.RESCAN_BUTTON, function() ns.Rescan() end, L.RESCAN_TIP)
 end

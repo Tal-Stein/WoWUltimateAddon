@@ -25,9 +25,7 @@ local commands = {
     ns:Fire("ULT_RESET_POSITIONS")
     ns:Print(L.POSITIONS_RESET)
   end,
-  scan = function(arg)
-    if arg == "test" and ns.LongRange then ns.LongRange:SelfTest() else ns:Fire("ULT_DEBUG_SCAN") end
-  end,
+  scan = function() ns:Fire("ULT_DEBUG_SCAN") end,
   rescan = function() ns.Rescan() end,
   grades = function()
     if ns.QuestGradesModule and ns.Modules:IsActive("questGrades") then

@@ -117,13 +117,6 @@ local function buildTargeting(ctx)
     function(i) B.set("targeting.marker", i - 1) end, 1)
   ctx:Checkbox("targeting.markerSoloOnly", L.MARKER_SOLO, L.MARKER_SOLO_TIP)
 
-  ctx:Header(L.SECTION_DETECTION)
-  ctx:Dropdown("targeting.detection", L.DETECTION, {
-    { value = "longRange", label = L.DETECTION_LONG_RANGE },
-    { value = "nameplates", label = L.DETECTION_NAMEPLATES },
-  }, L.DETECTION_TIP)
-  ctx:Slider("targeting.scanInterval", L.LONG_RANGE_INTERVAL, 0.05, 1, 0.05, fmtSeconds, L.LONG_RANGE_INTERVAL_TIP)
-
   ctx:Header(L.SECTION_PRIORITY)
   ctx:Checkbox("targeting.rareFirst", L.RARE_FIRST, L.RARE_FIRST_TIP)
   for i = 1, #ns.db.targeting.ranking do rankSlot(ctx, i) end

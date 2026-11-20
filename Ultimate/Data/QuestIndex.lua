@@ -106,18 +106,7 @@ local function matchObjectives(quest, kind, ...)
   return result
 end
 
--- Every mob the quest data ties to this quest, finished objectives included: for those names
--- the quest log's own progress is the truth, and tooltip learning must not add them back.
-local function noteKnown(quest, npcId)
-  local name = dbGet("Npc", npcId, "name")
-  if name then
-    quest.dbNames = quest.dbNames or {}
-    quest.dbNames[name] = true
-  end
-end
-
 local function addNpc(npcId, quest, objIndex, objective)
-  noteKnown(quest, npcId)
   if objective.finished then return end
   local entry = QI.byNpc[npcId]
   if not entry then
@@ -225,8 +214,6 @@ function QI:Rebuild()
     local quest = self.quests[questID]
     if not quest then
       self.learned[name] = nil
-    elseif quest.dbNames and quest.dbNames[name] then
-      self.learned[name] = nil -- the quest data covers it now (e.g. its objective got finished)
     elseif not self.byName[name] then
       local entry = learnedEntry(name, quest)
       if #entry.quests > 0 then
@@ -259,7 +246,6 @@ end
 function QI:Learn(name, questID)
   local quest = self.quests[questID]
   if not name or not quest or self.byName[name] then return false end
-  if quest.dbNames and quest.dbNames[name] then return false end
   local entry = learnedEntry(name, quest)
   if #entry.quests == 0 then return false end
   self.learned[name] = questID

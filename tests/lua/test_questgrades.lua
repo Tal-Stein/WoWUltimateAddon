@@ -245,6 +245,27 @@ describe("QuestGrades module", function()
     end
     assertTrue(found)
   end)
+  it("gives no single grade when the time is unknown, e.g. a starter with no known drop chance", function()
+    setup()
+    db.item[1307] = { name = "Gold Pickup Schedule", npcDrops = { 1190 } } -- Questie has no chance for it
+    db.quest[123] = { name = "The Collector", questLevel = 10, startedBy = { nil, nil, { 1307 } }, objectives = {} }
+    xp[123] = 900
+    QuestieLoader._modules.QuestXP.db[123] = { 10, 900 }
+    ns.db.questGrades.mode = "unified"
+    ns.db.questGrades.style = "balanced"
+    QG:Invalidate()
+    local r = QG:Grade(123)
+    assertNil(r.seconds)
+    assertNil(r.unified, "not a high grade built from the factors it happens to look good on")
+    local badge = string.gsub(string.gsub(QG:Badge(123), "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+    assertTrue(string.find(badge, "?", 1, true) ~= nil, badge)
+    -- a style that ignores speed can still grade it
+    ns.db.questGrades.style = "custom"
+    for k in pairs(ns.db.questGrades.weights) do ns.db.questGrades.weights[k] = 0 end
+    ns.db.questGrades.weights.difficulty = 100
+    QG:Invalidate()
+    assertEq(QG:Grade(123).unified, 5)
+  end)
   it("hides time when asked", function()
     setup()
     ns.db.questGrades.show.time = false

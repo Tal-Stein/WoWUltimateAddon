@@ -20,9 +20,14 @@ local function showPopup()
   local onShow = popup:GetScript("OnShow")
   if onShow then onShow(popup) end
 end
+local hasTarget = false
+local muted = {}
+MuteSoundFile = function(id) muted[id] = true end
+UnmuteSoundFile = function(id) muted[id] = nil end
 local function stubTargetUnit(name)
   calls[#calls + 1] = name
-  if not nearby[name] then return end
+  -- With a target, a name that matches nothing would clear it: the game refuses (and answers) for every name.
+  if not nearby[name] and not hasTarget then return end
   __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()")
   if withPopup then showPopup() end
 end
@@ -48,7 +53,8 @@ local function entry(name)
 end
 
 local function setup()
-  nearby, calls, withPopup, stopped = {}, {}, false, {}
+  nearby, calls, withPopup, stopped, hasTarget, muted = {}, {}, false, {}, false, {}
+  UnitExists = function(u) return u == "target" and hasTarget end
   TargetUnit = stubTargetUnit
   IsInRaid, UnitOnTaxi = nil, nil
   QI.byName = { ["Murloc Streamrunner"] = entry("Murloc Streamrunner"), ["Murloc"] = entry("Murloc") }
@@ -140,19 +146,19 @@ describe("Long-range scan (RestedXP's way)", function()
 end)
 
 describe("Long-range scan popup", function()
-  it("hides the warning popup and stops only its own sounds", function()
+  it("hides the warning popup, with its sounds muted only during the scan", function()
     setup()
     withPopup = true
     nearby["Murloc"] = true
-    local _, voice = play() -- another add-on (e.g. Spoken) is speaking
-    local before = nextHandle
+    local mutedDuring
+    local stub = TargetUnit
+    TargetUnit = function(n) mutedDuring = muted[567490] and muted[567464]; return stub(n) end
     LR:Scan(GetTime())
     assertTrue(LR:Found("Murloc"))
     assertFalse(popup.shown, "popup hidden")
-    for h = before + 1, nextHandle do
-      assertTrue(stopped[h], "sound " .. h .. " stopped")
-    end
-    assertNil(stopped[voice], "the other add-on's sound keeps playing")
+    assertTrue(mutedDuring, "open and close sounds muted while asking")
+    assertNil(muted[567490]); assertNil(muted[567464])
+    assertEq(next(stopped), nil, "no other sound is stopped")
   end)
   it("leaves other add-ons' warnings alone", function()
     setup()
@@ -232,13 +238,18 @@ describe("Long-range scan self-test (/ult scan test)", function()
     assertFalse(LR:Found(LR.TEST_NAME), "a test is never a find")
     assertFalse(popup.shown, "its popup is hidden too")
   end)
-  it("notes in the diary whether you had a target when a find was made", function()
+  it("doesn't scan while you have a target (every name would answer), and keeps its finds", function()
     setup()
-    ns.global.scanDiary = {}
-    UnitExists = function(u) return u == "target" end
     nearby["Murloc"] = true
     LR:Scan(GetTime())
-    UnitExists = nil
-    assertTrue(ns.global.scanDiary[1].hadTarget)
+    hasTarget = true
+    calls = {}
+    for _ = 1, 40 do __advance(0.25); LR:Scan(GetTime()) end -- 10 s with a target
+    assertEq(#calls, 0)
+    assertEq(#LR.Candidates({}), 1, "only Murloc, kept while targeting")
+    hasTarget = false
+    nearby["Murloc"] = nil
+    for _ = 1, 22 do __advance(0.25); LR:Scan(GetTime()) end
+    assertFalse(LR:Found("Murloc"), "dropped 5 s after it can be asked again and doesn't answer")
   end)
 end)

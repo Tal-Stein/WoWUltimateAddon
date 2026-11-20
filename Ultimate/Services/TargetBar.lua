@@ -264,6 +264,11 @@ ns:On("PLAYER_TARGET_CHANGED", Bar, function()
   if Bar.byName then Bar:UpdateVisuals() end
 end)
 
+-- A far-away entry's portrait finished loading.
+ns:On("ULT_PORTRAIT_READY", Bar, function()
+  if Bar.byName then Bar:UpdateVisuals() end
+end)
+
 -- Group changes can turn the solo-only raid marker on or off.
 ns:On("GROUP_ROSTER_UPDATE", Bar, function()
   Bar.ranked = Bar.ranked or {}

@@ -220,6 +220,15 @@ describe("TargetBar portraits", function()
     assertTrue(b.badge:IsShown(), "small quest badge in the corner")
     assertEq(b.badge.texture, UI.ICON_QUEST)
   end)
+  it("a far-away target shows its portrait from the target unit", function()
+    withIcons()
+    portraits = {}
+    UnitName = function(unit) if unit == "target" then return "Murloc Streamrunner" end end
+    UnitExists = function(unit) return unit == "target" end
+    show({ name = "Murloc Streamrunner", count = 1, kind = "quest", mobs = {}, farAway = true })
+    assertEq(#portraits >= 1 and portraits[#portraits].unit, "target")
+    UnitName, UnitExists = nil, nil
+  end)
   it("rares get the rare badge", function()
     show({ name = "Mor'Ladim", level = 35, count = 1, kind = "rare", mobs = { { unit = "nameplate2", classification = "rareelite" } } })
     assertEq(UltimateTargetBarButton1.badge.texture, UI.ICON_RARE)

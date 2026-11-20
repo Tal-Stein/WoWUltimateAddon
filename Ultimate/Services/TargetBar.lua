@@ -134,11 +134,13 @@ local function iconFor(c)
   return UI.ICON_QUEST
 end
 
--- The nameplate unit of the candidate's first visible mob, for its portrait.
+-- The unit to draw the candidate's portrait from: its first visible nameplate mob, or your
+-- target when that's the candidate (works at any range, e.g. a long-range find).
 local function unitOf(c)
   for _, m in ipairs(c.mobs or {}) do
     if m.unit then return m.unit end
   end
+  if ns.Safe.read(UnitExists, "target") and ns.Safe.read(UnitName, "target") == c.name then return "target" end
 end
 
 -- Non-protected visuals (icon, labels, counts). Safe in combat.
@@ -244,6 +246,11 @@ ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
     Bar.ranked = Bar.ranked or {}
     Bar:Layout(true)
   end
+end)
+
+-- A new target can give a far-away entry its portrait.
+ns:On("PLAYER_TARGET_CHANGED", Bar, function()
+  if Bar.byName then Bar:UpdateVisuals() end
 end)
 
 -- Group changes can turn the solo-only raid marker on or off.

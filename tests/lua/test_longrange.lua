@@ -114,8 +114,23 @@ describe("Long-range scan", function()
     sweep(100)
     for _, n in ipairs(calls) do assertTrue(n ~= "Murloc", "visible mobs aren't pinged") end
     calls = {}
-    sweep(105)
+    sweep(104)
     for _, n in ipairs(calls) do assertTrue(n ~= "Murloc Streamrunner", "found recently: not pinged again") end
+  end)
+  it("keeps a find listed without gaps by asking again before it runs out", function()
+    setup()
+    nearby["Murloc Streamrunner"] = true
+    sweep(100)
+    calls = {}
+    sweep(107) -- older than 6 s: asked again, still answers
+    local asked = false
+    for _, n in ipairs(calls) do if n == "Murloc Streamrunner" then asked = true end end
+    assertTrue(asked, "re-asked before it expires")
+    assertTrue(LR:Found("Murloc Streamrunner", 120), "listed continuously")
+    nearby["Murloc Streamrunner"] = nil
+    sweep(114)
+    assertTrue(LR:Found("Murloc Streamrunner", 121), "one missed answer doesn't drop it")
+    assertFalse(LR:Found("Murloc Streamrunner", 123), "gone 15 s after its last answer")
   end)
   it("forgets a find once it stops answering", function()
     setup()
@@ -123,7 +138,7 @@ describe("Long-range scan", function()
     sweep(100)
     nearby["Murloc Streamrunner"] = nil
     sweep(111)
-    assertFalse(LR:Found("Murloc Streamrunner", 111))
+    assertFalse(LR:Found("Murloc Streamrunner", 116))
   end)
   it("does nothing with nameplates only, or in combat", function()
     setup()

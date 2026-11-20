@@ -23,6 +23,16 @@ describe("Markers", function()
     assertTrue(a.markerSize > ns.db.targeting.markers.size, "top-ranked is larger")
     assertTrue(b.isRare, "rare variant")
   end)
+  it("always marks the mob you have targeted, even with top-only on", function()
+    ns.db.targeting.markers.topOnly = true
+    UnitName = function(unit) if unit == "target" then return "B" end end
+    C_NamePlate.GetNamePlateForUnit = function(unit) if unit == "target" then return plateB end end
+    fire()
+    assertTrue(M:ForPlate(plateB) ~= nil, "the target's plate is marked")
+    ns.db.targeting.markers.topOnly = false
+    UnitName = nil
+    C_NamePlate.GetNamePlateForUnit = function() end
+  end)
   it("releases markers when names drop out", function()
     fire()
     ns:Fire("ULT_TARGETS_CHANGED", {}, {})

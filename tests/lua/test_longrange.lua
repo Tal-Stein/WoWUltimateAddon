@@ -96,8 +96,56 @@ describe("Long-range scan", function()
     sweep(100)
     assertTrue(LR:Found("Murloc Streamrunner", 100))
     assertFalse(popup.shown, "popup hidden")
-    assertTrue(stopped[lastSound] and stopped[lastSound - 1] and stopped[lastSound - 2], "its sounds stopped")
     assertEq(LR.stats.popups, 1)
+  end)
+  it("stops only the popup's own sounds, never another add-on's (e.g. Spoken's voice)", function()
+    setup()
+    local nextHandle = 100
+    stopped = {}
+    SOUNDKIT = SOUNDKIT or {}
+    SOUNDKIT.IG_MAINMENU_CLOSE = SOUNDKIT.IG_MAINMENU_CLOSE or 851
+    local function play() nextHandle = nextHandle + 1; return true, nextHandle end
+    PlaySound = play
+    StopSound = function(h) stopped[h] = true end
+    local _, voice = play() -- Spoken starts reading a quest
+    local open, close
+    local realHide = popup.Hide
+    popup.Hide = function(self) realHide(self); _, close = play() end -- the popup's close sound
+    nearby["Murloc Streamrunner"] = true
+    mode = "custom"
+    local savedTargetUnit = TargetUnit
+    TargetUnit = (function(orig)
+      return function(name)
+        calls[#calls + 1] = name
+        if not nearby[name] then return end
+        popup.text:SetText(string.format(ADDON_ACTION_FORBIDDEN, "Ultimate"))
+        popup:Show()
+        _, open = play() -- the popup's open sound
+        popup:GetScript("OnShow")(popup)
+      end
+    end)(TargetUnit)
+    sweep(100)
+    popup.Hide = realHide
+    TargetUnit = savedTargetUnit
+    assertTrue(LR:Found("Murloc Streamrunner", 100))
+    assertTrue(open ~= nil and stopped[open], "open sound stopped")
+    assertTrue(close ~= nil and stopped[close], "close sound stopped")
+    assertNil(stopped[voice], "Spoken's clip keeps playing")
+  end)
+  it("a popup that makes no sound of its own stops nothing else", function()
+    setup()
+    local nextHandle = 200
+    stopped = {}
+    local function play() nextHandle = nextHandle + 1; return true, nextHandle end
+    PlaySound = play
+    StopSound = function(h) stopped[h] = true end
+    mode = "popup"
+    nearby["Murloc Streamrunner"] = true
+    LR:Ping(100) -- the first name asked
+    local _, voice = play() -- a clip starts while the answer window is open
+    __advance(0.5)
+    showPopup() -- the popup turns up a moment later, silently
+    assertNil(stopped[voice], "the clip in between keeps playing")
   end)
   it("doesn't ask about the next name while the last answer may still come", function()
     setup()

@@ -234,6 +234,7 @@ function LR:Ping(now)
   if pick ~= CANARY then self.sinceCheck = self.sinceCheck + 1 end
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1
+  self.pending.handle = LR.Probe()
   self.scanning = true
   pcall(TargetUnit, pick, true)
   self.scanning = false
@@ -276,14 +277,34 @@ function LR.Candidates(mobs)
   return list
 end
 
--- Showing and hiding the popup plays the menu open/close sounds, all within our ping. Sound
--- handles are sequential, so play a probe sound and stop it plus the two before it (the
--- popup's open and close) before they're heard. Same approach as RestedXP's scanner.
-function LR.SilenceLastSounds()
-  if type(PlaySound) ~= "function" or type(StopSound) ~= "function" or not SOUNDKIT then return end
+-- Showing and hiding the popup plays the menu open/close sounds. Sound handles are
+-- sequential, so a silent probe (a sound started and stopped at once) marks where the count
+-- stands. Only handles proven to be the popup's are stopped: those started between two probes
+-- with nothing but the popup's own code running in between. Stopping "the last few" blindly
+-- also cut off other add-ons' sounds, like Spoken's voice clips.
+function LR.Probe()
+  if type(PlaySound) ~= "function" or type(StopSound) ~= "function" or not SOUNDKIT then return nil end
   local ok, _, handle = pcall(PlaySound, SOUNDKIT.IG_MAINMENU_CLOSE, "SFX")
-  if not (ok and type(handle) == "number") then return end
-  for h = handle - 2, handle do pcall(StopSound, h) end
+  if not (ok and type(handle) == "number") then return nil end
+  pcall(StopSound, handle)
+  return handle
+end
+
+local function stopBetween(from, to)
+  if not (from and to) or to - from > 6 then return end -- never a wide sweep
+  for h = from + 1, to - 1 do pcall(StopSound, h) end
+end
+
+-- Hide the popup and silence it. `self` is the popup, shown during our ping.
+function LR.HideQuietly(popup)
+  local before = LR.Probe()
+  popup:Hide()
+  local after = LR.Probe()
+  stopBetween(before, after) -- the close sound
+  -- The open sound: only when the popup came up inside our own TargetUnit call, so nothing
+  -- else could have started a sound since the probe taken just before it.
+  local p = LR.pending
+  if LR.scanning and p and p.handle then stopBetween(p.handle, before) end
 end
 
 -- The game shows "Ultimate has been blocked..." for every refusal. Hide that popup only right
@@ -300,8 +321,7 @@ function LR:InstallPopupGuard()
         local mine = ADDON_ACTION_FORBIDDEN and string.format(ADDON_ACTION_FORBIDDEN, ADDON)
         if mine and text and text.GetText and text:GetText() == mine then
           answer("popups")
-          self:Hide()
-          LR.SilenceLastSounds()
+          LR.HideQuietly(self)
         end
       end)
     end

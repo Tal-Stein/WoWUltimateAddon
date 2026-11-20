@@ -4,6 +4,15 @@ local L = ns.L
 SLASH_ULTIMATE1 = "/ult"
 SLASH_ULTIMATE2 = "/ultimate"
 
+-- Recalculate everything Ultimate derives from Questie's data, now. Databases themselves are read
+-- fresh each login; remembered quest rewards and quest times are kept.
+function ns.Rescan()
+  if ns.QuestIndex then ns.QuestIndex:Rebuild() end
+  if ns.QuestGradesModule then ns.QuestGradesModule:Invalidate() end
+  if ns.Targeting and ns.Targeting.Refresh then ns.Targeting:Refresh(true) end
+  ns:Print(L.RESCANNED)
+end
+
 local commands = {
   [""] = function()
     if ns.OpenSettings then ns.OpenSettings() else ns:Print(L.SLASH_HELP) end
@@ -17,6 +26,7 @@ local commands = {
     ns:Print(L.POSITIONS_RESET)
   end,
   scan = function() ns:Fire("ULT_DEBUG_SCAN") end,
+  rescan = function() ns.Rescan() end,
   grades = function()
     if ns.QuestGradesModule and ns.Modules:IsActive("questGrades") then
       ns.QuestGradesModule:Report()

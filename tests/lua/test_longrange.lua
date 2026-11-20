@@ -221,7 +221,7 @@ describe("Long-range scan", function()
     assertTrue(LR.unreliable)
     assertEq(#LR.Candidates({}), 0, "no finds shown when answers prove nothing")
   end)
-  it("credits an answer that arrives just after the ping to the name just pinged", function()
+  it("ignores an answer that arrives after the call: it can't be told which name it was for", function()
     setup()
     mode = "late"
     nearby["Mother Fang"] = true
@@ -233,9 +233,29 @@ describe("Long-range scan", function()
       end
       __advance(1.1)
     end
-    assertTrue(LR:Found("Mother Fang", 100))
+    assertFalse(LR:Found("Mother Fang", 100))
     assertFalse(LR:Found("Murloc", 100))
-    assertEq(LR.stats.lateEvents, 1)
+    assertTrue((LR.stats.lateEvents or 0) >= 1)
+  end)
+  it("calls TargetUnit by name, so the game reports it as TargetUnit() rather than UNKNOWN()", function()
+    setup()
+    local saved, seenName = TargetUnit, nil
+    TargetUnit = function() seenName = debug.getinfo(1, "n").name end
+    LR:Ping(GetTime())
+    TargetUnit = saved
+    assertEq(seenName, "TargetUnit")
+  end)
+  it("switches the game's warning dialog off during its own call only", function()
+    setup()
+    local dialog = {}
+    StaticPopupDialogs = { ADDON_ACTION_FORBIDDEN = dialog }
+    local saved, during = TargetUnit, "unset"
+    TargetUnit = function() during = StaticPopupDialogs.ADDON_ACTION_FORBIDDEN end
+    LR:Ping(GetTime())
+    TargetUnit = saved
+    assertNil(during, "no popup (and no sound) for our own refusal")
+    assertTrue(StaticPopupDialogs.ADDON_ACTION_FORBIDDEN == dialog, "put back for everyone else")
+    StaticPopupDialogs = nil
   end)
   it("doesn't ping what nameplates show, or what it found in the last 10 s", function()
     setup()
@@ -397,6 +417,30 @@ describe("Long-range scan after a reload", function()
     __advance(11)
     LR:Ping(GetTime())
     __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()")
-    assertEq(#(ns.global.errorLog or {}), 0)
+    for _, e in ipairs(ns.global.errorLog or {}) do assertTrue(e.kind ~= "forbidden", "own refusal logged") end
+  end)
+end)
+
+describe("Long-range scan answers named UNKNOWN()", function()
+  -- Seen in the error log: this client names the blocked function "UNKNOWN()", and shows the
+  -- popup only for the first couple of refusals. The notice is the answer that keeps coming.
+  it("finds a mob from a notice that names the function UNKNOWN()", function()
+    setup()
+    local saved = TargetUnit
+    TargetUnit = function(name)
+      calls[#calls + 1] = name
+      if nearby[name] then __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "UNKNOWN()") end
+    end
+    nearby["Mother Fang"] = true
+    sweep(GetTime())
+    TargetUnit = saved
+    assertTrue(LR:Found("Mother Fang"))
+    assertTrue(#LR.Candidates({}) >= 1)
+  end)
+  it("ignores another add-on's UNKNOWN() notice", function()
+    setup()
+    LR:Ping(GetTime())
+    __fire("ADDON_ACTION_FORBIDDEN", "SomeOtherAddon", "UNKNOWN()")
+    assertFalse(LR.pending.answered == true)
   end)
 end)

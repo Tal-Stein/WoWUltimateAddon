@@ -235,9 +235,19 @@ function LR:Ping(now)
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1
   self.pending.handle = LR.Probe()
+  -- The refusal is reported during the call (as RestedXP relies on). Only answers that arrive
+  -- while the call runs count, so nothing late can be credited to the wrong name.
+  -- TargetUnit is called from a Lua function, not handed to pcall directly: called from pcall
+  -- the client can't name it and reports "UNKNOWN()". While the call runs the game's warning
+  -- dialog is switched off, so our own refusal shows no popup and plays no sound; it's put
+  -- back right after, so every other warning (any add-on's, or Ultimate's) still shows.
+  local dialogs = type(StaticPopupDialogs) == "table" and StaticPopupDialogs or nil
+  local dialog = dialogs and dialogs.ADDON_ACTION_FORBIDDEN
+  if dialog then dialogs.ADDON_ACTION_FORBIDDEN = nil end
   self.scanning = true
-  pcall(TargetUnit, pick, true)
+  pcall(function() TargetUnit(pick, true) end)
   self.scanning = false
+  if dialog then dialogs.ADDON_ACTION_FORBIDDEN = dialog end
 end
 
 ns:On("NAME_PLATE_UNIT_ADDED", LR, function(_, unit)
@@ -250,8 +260,11 @@ ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
   if addon == ADDON and p and not p.eventFunc then
     p.eventFunc = (LR.scanning and "" or "late:") .. tostring(func) -- for the diary
   end
-  if addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then
-    answer(LR.scanning and "events" or "lateEvents")
+  -- Only a notice that arrives during our own call is an answer. "UNKNOWN()" is accepted too,
+  -- in case the client can't name the function.
+  local f = tostring(func)
+  if addon == ADDON and (string.find(f, "TargetUnit", 1, true) or f == "UNKNOWN()") then
+    if LR.scanning then answer("events") else LR.stats.lateEvents = (LR.stats.lateEvents or 0) + 1 end
   end
 end)
 
@@ -320,7 +333,9 @@ function LR:InstallPopupGuard()
         local text = self.text or self.Text
         local mine = ADDON_ACTION_FORBIDDEN and string.format(ADDON_ACTION_FORBIDDEN, ADDON)
         if mine and text and text.GetText and text:GetText() == mine then
-          answer("popups")
+          -- Normally switched off during our call (see Ping); if it shows anyway it's ours, but
+          -- only one shown during the call itself counts as an answer.
+          if LR.scanning then answer("popups") else LR.stats.latePopups = (LR.stats.latePopups or 0) + 1 end
           LR.HideQuietly(self)
         end
       end)

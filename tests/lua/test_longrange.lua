@@ -19,7 +19,11 @@ TargetUnit = function(name)
   if not nearby[name] then return end
   if mode == "event" then __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()")
   elseif mode == "popup" then showPopup()
-  elseif mode == "late" then pendingLate = true end
+  elseif mode == "late" then pendingLate = true
+  elseif mode == "both" then -- the notice now, the popup a moment later
+    __fire("ADDON_ACTION_FORBIDDEN", "Ultimate", "TargetUnit()")
+    C_Timer.After(0.6, showPopup)
+  end
 end
 UnitLevel = function(unit) if unit == "player" then return 10 end end
 C_NamePlate = { GetNamePlates = function() return {} end, GetNamePlateForUnit = function() end }
@@ -114,6 +118,19 @@ describe("Long-range scan", function()
     __advance(61)
     sweep(GetTime())
     assertTrue(LR:Found("Murloc"), "back after a minute if it still answers")
+  end)
+  it("a refusal reported twice (notice, then popup) counts once and never for the next name", function()
+    setup()
+    mode = "both"
+    nearby["Mother Fang"] = true
+    for _ = 1, 25 do
+      LR:Ping(GetTime())
+      __advance(0.5) -- the ticker's pace
+    end
+    assertTrue(LR:Found("Mother Fang"))
+    assertFalse(LR:Found("Murloc"), "the trailing popup didn't make Murloc a find")
+    assertFalse(LR:Found("Murloc Streamrunner"))
+    assertFalse(LR.unreliable, "nor the made-up name")
   end)
   it("checks itself with a made-up name, and stops trusting answers if even that answers", function()
     setup()

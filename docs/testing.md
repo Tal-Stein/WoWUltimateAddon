@@ -90,6 +90,11 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match
       still works.
 
+## Remembered portraits
+- [ ] A target bar entry whose mob has no nameplate right now shows that mob's portrait if
+      it's been seen up close before (nameplate, target or mouseover, on any character) or
+      Questie knows its NPC ID; otherwise the quest or rare icon.
+
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest
       grades) starts with "Enable <feature>". Unticking it turns the feature off, greys out

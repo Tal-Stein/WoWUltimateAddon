@@ -122,7 +122,7 @@ local function buildTargeting(ctx)
     { value = "longRange", label = L.DETECTION_LONG_RANGE },
     { value = "nameplates", label = L.DETECTION_NAMEPLATES },
   }, L.DETECTION_TIP)
-  ctx:Slider("targeting.scanInterval", L.LONG_RANGE_INTERVAL, 0.5, 5, 0.5, fmtSeconds, L.LONG_RANGE_INTERVAL_TIP)
+  ctx:Slider("targeting.pingInterval", L.LONG_RANGE_INTERVAL, 0.2, 2, 0.1, fmtSeconds, L.LONG_RANGE_INTERVAL_TIP)
 
   ctx:Header(L.SECTION_PRIORITY)
   ctx:Checkbox("targeting.rareFirst", L.RARE_FIRST, L.RARE_FIRST_TIP)

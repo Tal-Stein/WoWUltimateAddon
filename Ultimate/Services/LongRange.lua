@@ -7,18 +7,20 @@ local L = ns.L
 -- view range, far beyond nameplates. A refusal therefore means "it's nearby". Nothing is ever
 -- targeted. Found names feed the target bar until their nameplate shows; then the normal
 -- nameplate path (levels, filters, markers) takes over.
-local LR = { found = {}, scanning = false }
+local LR = { found = {}, scanning = false, stats = {} }
 ns.LongRange = LR
 
-local HOLD = 10      -- seconds a find stays valid without a new answer (and between re-pings)
-local POPUP_WINDOW = 1 -- seconds after a ping in which "Ultimate was blocked" is our own scan
+local HOLD = 10   -- seconds a find stays valid without a new answer (and between re-pings)
+local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
 
 local function o() return ns.db.targeting end
 function LR.Enabled() return ns.db ~= nil and o().detection == "longRange" end
 
 function LR:Reset()
-  self.found, self.visible, self.lastScan, self.lastPingAt = {}, nil, nil, nil
+  self.found, self.visible, self.pending, self.lastName = {}, nil, nil, nil
+  self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0 }
 end
+LR:Reset()
 
 -- Names worth looking for: quest mobs still needed (not on ignored quests) and watched rares.
 local function wantedNames()
@@ -49,35 +51,60 @@ end
 
 function LR:Found(name, now)
   local at = self.found[name]
-  now = now or self.lastScan or GetTime()
+  now = now or GetTime()
   return at ~= nil and now - at <= HOLD
 end
 
--- One pass: ping every wanted name that no nameplate shows and that wasn't found recently.
-function LR:Scan(now)
+-- The ping in flight, if its answer window is still open.
+local function pending()
+  local p = LR.pending
+  if p and GetTime() - p.at <= WINDOW then return p end
+  return nil
+end
+
+local function answer(source)
+  local p = pending()
+  if not p then return false end
+  if not LR:Found(p.name, p.now) and ns.Targeting and ns.Targeting.RequestRefresh then
+    ns.Targeting:RequestRefresh()
+  end
+  LR.found[p.name] = p.now
+  LR.stats[source] = (LR.stats[source] or 0) + 1
+  return true
+end
+
+-- Is this forbidden-action notice the answer to our own ping? (The error log skips those.)
+function LR.IsOwnAnswer(addon, func)
+  return addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) ~= nil and pending() ~= nil
+end
+
+-- Ping the next name that no nameplate shows and that wasn't found recently: one per call, so
+-- any answer, during the call or just after, belongs to it.
+function LR:Ping(now)
   if not self.Enabled() or InCombatLockdown() or type(TargetUnit) ~= "function" then return end
   now = now or GetTime()
-  self.lastScan = now
   local visible = self.visible or plateNames()
-  local before = {}
-  for name in pairs(self.found) do before[name] = self:Found(name, now) end
+  local names = {}
   for name in pairs(wantedNames()) do
-    if not visible[name] and not self:Found(name, now) then
-      self.current, self.scanning, self.lastPingAt = name, true, GetTime()
-      pcall(TargetUnit, name, true)
-      self.scanning, self.current = false, nil
-    end
+    if not visible[name] and not self:Found(name, now) then names[#names + 1] = name end
   end
-  local changed = false
-  for name in pairs(self.found) do
-    if (before[name] or false) ~= self:Found(name, now) then changed = true end
+  if #names == 0 then return end
+  table.sort(names)
+  local pick = names[1]
+  for _, name in ipairs(names) do
+    if self.lastName and name > self.lastName then pick = name; break end
   end
-  if changed and ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
+  self.lastName = pick
+  self.pending = { name = pick, at = GetTime(), now = now }
+  self.stats.pings = self.stats.pings + 1
+  self.scanning = true
+  pcall(TargetUnit, pick, true)
+  self.scanning = false
 end
 
 ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
-  if LR.scanning and addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then
-    LR.found[LR.current] = LR.lastScan or GetTime()
+  if addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then
+    answer(LR.scanning and "events" or "lateEvents")
   end
 end)
 
@@ -122,10 +149,11 @@ function LR:InstallPopupGuard()
     if popup and not popup.ultLongRangeGuard and popup.HookScript then
       popup.ultLongRangeGuard = true
       popup:HookScript("OnShow", function(self)
-        if not (LR.lastPingAt and GetTime() - LR.lastPingAt <= POPUP_WINDOW) then return end
+        if not pending() then return end
         local text = self.text or self.Text
         local mine = ADDON_ACTION_FORBIDDEN and string.format(ADDON_ACTION_FORBIDDEN, ADDON)
         if mine and text and text.GetText and text:GetText() == mine then
+          answer("popups")
           self:Hide()
           LR.SilenceLastSounds()
         end
@@ -138,11 +166,21 @@ ns:On("PLAYER_LOGIN", LR, function()
   LR:InstallPopupGuard()
   ns.Targeting:RegisterProvider("longRange", LR.Candidates)
   local last = 0
-  C_Timer.NewTicker(0.25, function()
+  C_Timer.NewTicker(0.1, function()
     local now = GetTime()
-    if now - last >= (o().scanInterval or 1) then
+    if now - last >= (o().pingInterval or 0.5) then
       last = now
-      ns.SafeCall(LR.Scan, LR, now)
+      ns.SafeCall(LR.Ping, LR, now)
     end
   end)
+end)
+
+ns:On("ULT_DEBUG_SCAN", LR, function()
+  local st = LR.stats
+  ns:Print(string.format(L.LONG_RANGE_REPORT, LR.Enabled() and L.ON or L.OFF, st.pings or 0,
+    st.events or 0, st.lateEvents or 0, st.popups or 0))
+  local names = {}
+  for name in pairs(LR.found) do if LR:Found(name) then names[#names + 1] = name end end
+  table.sort(names)
+  ns:Print("  " .. (#names > 0 and table.concat(names, ", ") or L.LONG_RANGE_NONE))
 end)

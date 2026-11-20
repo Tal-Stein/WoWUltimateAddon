@@ -118,23 +118,27 @@ describe("Markers", function()
 end)
 
 describe("Markers and the target bar", function()
-  it("marks only names the bar shows, so every marked mob can be clicked there", function()
-    ns.db.targeting.bar.max = 1
-    fire()
-    assertTrue(M:ForPlate(plateA) ~= nil)
-    assertNil(M:ForPlate(plateB), "B didn't fit on the bar")
-    ns.db.targeting.bar.max = 6
-    fire()
-    assertTrue(M:ForPlate(plateB) ~= nil)
+  it("every marked mob has a button on the bar: the bar holds every identified name", function()
+    assertEq(ns.db.targeting.bar.max, 24)
+    local names, byName = {}, {}
+    for i = 1, 10 do
+      local n = "Mob " .. i
+      names[i] = n
+      byName[n] = { name = n, level = 5, kind = "quest", mobs = { { plate = CreateFrame("Frame"), tapped = false, level = 5 } } }
+    end
+    ns:Fire("ULT_TARGETS_CHANGED", names, byName)
+    for i = 1, 10 do
+      assertTrue(M:ForPlate(byName["Mob " .. i].mobs[1].plate) ~= nil, "marked")
+      assertTrue(_G["UltimateTargetBarButton" .. i]:IsShown(), "and on the bar")
+    end
   end)
-  it("in combat a new name waits for the bar too", function()
-    ns:Fire("ULT_TARGETS_CHANGED", { "A" }, { A = { name = "A", level = 5, kind = "quest",
-      mobs = { { plate = plateA, tapped = false, level = 5 } } } })
-    __inCombat = true
-    fire()
-    assertNil(M:ForPlate(plateB), "not on the bar yet")
-    __inCombat = false
-    __fire("PLAYER_REGEN_ENABLED")
-    assertTrue(M:ForPlate(plateB) ~= nil, "added with the bar after combat")
+  it("profiles saved with the old 6-name default get the full bar once", function()
+    ns.db.targeting.barVersion, ns.db.targeting.bar.max = nil, 6
+    ns:Fire("ULT_DB_READY")
+    assertEq(ns.db.targeting.bar.max, 24)
+    ns.db.targeting.bar.max = 6
+    ns:Fire("ULT_DB_READY")
+    assertEq(ns.db.targeting.bar.max, 6, "a later choice of 6 is kept")
+    ns.db.targeting.bar.max = 24
   end)
 end)

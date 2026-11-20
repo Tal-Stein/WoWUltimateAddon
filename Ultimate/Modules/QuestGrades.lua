@@ -185,7 +185,12 @@ local function unifiedScoreOf(questId, ctx, leveling, gear)
     difficulty = (f.elite or f.group or f.escort) and 0 or 1,
     rep = f.rep and 1 or 0,
   }
-  return G.unifiedScore(factors, weights())
+  -- Unknown time can hide a big cost (a rare starter drop, unknown drop chances), so a style
+  -- that counts speed gives no grade rather than one built from the remaining factors.
+  -- (Unknown gear is only a missing bonus, so it is still skipped.)
+  local w = weights()
+  if factors.speed == nil and (w.speed or 0) > 0 then return nil end
+  return G.unifiedScore(factors, w)
 end
 
 local function levelingOf(questId, ctx)

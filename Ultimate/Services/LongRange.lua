@@ -77,6 +77,7 @@ end
 -- corpses or a mob out of reach. Keep that name off the list for a minute.
 function LR:ClickFailed(name)
   if not name then return end
+  if self.openDiary[name] then self.openDiary[name].clickFailed = true end
   self.failed[name] = GetTime()
   self.found[name] = nil
   if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
@@ -87,6 +88,33 @@ local function pending()
   local p = LR.pending
   if p and GetTime() - p.at <= WINDOW then return p end
   return nil
+end
+
+-- Diary of new finds (UltimateDB.scanDiary, saved on /reload): how each was answered and what
+-- happened next, so false finds can be told apart from real mobs out of sight.
+local DIARY_MAX, CONFIRM_WITHIN = 100, 60
+LR.openDiary = {}
+
+function LR:Diary(name, source)
+  if not ns.global then return end
+  ns.global.scanDiary = ns.global.scanDiary or {}
+  local d = ns.global.scanDiary
+  local e = { name = name, at = (time and time()) or 0, source = source, selfCheckOk = not self.unreliable,
+    pings = self.stats.pings }
+  e.t = GetTime()
+  d[#d + 1] = e
+  while #d > DIARY_MAX do table.remove(d, 1) end
+  self.openDiary[name] = e
+  return e
+end
+
+-- A nameplate with this name appeared: the latest find of it, if recent, was a real mob.
+function LR:NoteNameplate(name)
+  local e = name and self.openDiary[name]
+  if e and not e.confirmed and GetTime() - (e.t or 0) <= CONFIRM_WITHIN then
+    e.confirmed = true
+    e.confirmedAfter = math.floor(GetTime() - e.t + 0.5)
+  end
 end
 
 local function answer(source)
@@ -100,6 +128,7 @@ local function answer(source)
   end
   p.answered = true
   LR.misses[p.name] = nil
+  if p.name ~= CANARY and not LR.found[p.name] then LR:Diary(p.name, source) end
   if p.name == CANARY then
     if not LR.unreliable then
       LR.unreliable = true
@@ -179,6 +208,11 @@ function LR:Ping(now)
   pcall(TargetUnit, pick, true)
   self.scanning = false
 end
+
+ns:On("NAME_PLATE_UNIT_ADDED", LR, function(_, unit)
+  local name = ns.Safe.read(UnitName, unit)
+  if name then LR:NoteNameplate(name) end
+end)
 
 ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
   if addon == ADDON and string.find(tostring(func), "TargetUnit", 1, true) then

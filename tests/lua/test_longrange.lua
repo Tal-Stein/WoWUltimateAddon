@@ -263,3 +263,30 @@ describe("Long-range scan", function()
     assertTrue(string.find(all, "Murloc Streamrunner", 1, true) ~= nil, all)
   end)
 end)
+
+describe("Long-range scan diary", function()
+  it("records each new find with how it was answered, and what happened next", function()
+    setup()
+    ns.global.scanDiary = {}
+    nearby["Mother Fang"] = true
+    sweep(GetTime())
+    local d = ns.global.scanDiary
+    assertEq(#d, 1)
+    assertEq(d[1].name, "Mother Fang")
+    assertEq(d[1].source, "events")
+    assertNil(d[1].confirmed)
+    -- its nameplate shows up: confirmed real
+    __fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    LR:NoteNameplate("Mother Fang")
+    assertTrue(d[1].confirmed)
+    LR:ClickFailed("Mother Fang")
+    assertTrue(d[1].clickFailed)
+  end)
+  it("keeps at most 100 entries", function()
+    setup()
+    ns.global.scanDiary = {}
+    for i = 1, 105 do LR:Diary("Mob " .. i, "events") end
+    assertEq(#ns.global.scanDiary, 100)
+    assertEq(ns.global.scanDiary[1].name, "Mob 6")
+  end)
+end)

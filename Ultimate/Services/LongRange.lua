@@ -91,6 +91,12 @@ end
 local function answer(source)
   local p = pending()
   if not p then return false end
+  -- One refusal can be reported twice (the notice, then the popup a moment later): the second
+  -- belongs to the same question and is only counted as a duplicate.
+  if p.answered then
+    LR.stats.duplicates = (LR.stats.duplicates or 0) + 1
+    return true
+  end
   p.answered = true
   if p.name == CANARY then
     if not LR.unreliable then
@@ -127,10 +133,9 @@ function LR:Ping(now)
     if not visible[name] and not suppressed and (not at or now - at >= REFRESH) then names[#names + 1] = name end
   end
   if #names == 0 then return end
-  -- One question at a time: wait until the last one was answered or its window closed, so a
-  -- late answer can't be credited to the next name.
-  local open = pending()
-  if open and not open.answered then return end
+  -- One question at a time, each with its full answer window, even once answered: a late or
+  -- repeated signal then still lands on its own question, never on the next name.
+  if pending() then return end
   table.sort(names)
   local pick = names[1]
   for _, name in ipairs(names) do
@@ -225,7 +230,7 @@ end)
 ns:On("ULT_DEBUG_SCAN", LR, function()
   local st = LR.stats
   ns:Print(string.format(L.LONG_RANGE_REPORT, LR.Enabled() and L.ON or L.OFF, st.pings or 0,
-    st.events or 0, st.lateEvents or 0, st.popups or 0))
+    st.events or 0, st.lateEvents or 0, st.popups or 0, st.duplicates or 0))
   ns:Print(string.format(LR.unreliable and L.LONG_RANGE_UNRELIABLE or L.LONG_RANGE_SELFCHECK, st.canaries or 0))
   local names = {}
   for name in pairs(LR.found) do if LR:Found(name) then names[#names + 1] = name end end

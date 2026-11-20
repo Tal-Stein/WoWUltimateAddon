@@ -101,6 +101,10 @@ end
 function LR:Answer(source)
   local name = self.scanning
   if not name then return false end
+  if self.testing then
+    self.testing[source] = true
+    return true
+  end
   local new = not self:Found(name)
   self.found[name] = GetTime()
   self.stats.answers = self.stats.answers + 1
@@ -119,6 +123,7 @@ end
 ns:On("ADDON_ACTION_FORBIDDEN", LR, function(_, addon, func)
   if addon ~= ADDON or not LR.scanning then return end
   local f = tostring(func)
+  if LR.testing then LR.testing.func = f end
   if f == "TargetUnit()" or f == "UNKNOWN()" then LR:Answer("events") end
 end)
 
@@ -131,7 +136,8 @@ function LR:Diary(name, source)
   if not ns.global then return end
   ns.global.scanDiary = ns.global.scanDiary or {}
   local d = ns.global.scanDiary
-  local e = { name = name, at = (time and time()) or 0, source = source, t = GetTime() }
+  local e = { name = name, at = (time and time()) or 0, source = source, t = GetTime(),
+    hadTarget = ns.Safe.read(UnitExists, "target") and true or false }
   d[#d + 1] = e
   while #d > DIARY_MAX do table.remove(d, 1) end
   self.openDiary[name] = e
@@ -214,6 +220,23 @@ ns:On("PLAYER_LOGIN", LR, function()
     end
   end)
 end)
+
+-- /ult scan test: ask the game about a name no creature has, and report whether it answered
+-- and whether you had a target. Run it once with a target and once without.
+LR.TEST_NAME = "Nobody Here Qzxv"
+function LR:SelfTest()
+  local hasTarget = ns.Safe.read(UnitExists, "target") and true or false
+  local result = {}
+  self.testing = result
+  self.mark = self.Probe()
+  self.scanning = self.TEST_NAME
+  pcall(function() TargetUnit(LR.TEST_NAME, true) end)
+  self.scanning, self.testing, self.mark = nil, nil, nil
+  local answered = result.events or result.popups
+  ns:Print(string.format(L.LONG_RANGE_TEST, hasTarget and L.YES or L.NO,
+    answered and L.YES or L.NO, tostring(result.func or "-"), result.popups and L.YES or L.NO))
+  return answered and true or false, hasTarget, result
+end
 
 ns:On("ULT_DEBUG_SCAN", LR, function()
   local st = LR.stats

@@ -90,6 +90,18 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] *Verify* that `C_QuestLog.IsOnMap` exists on Forever. If it doesn't, the zone match
       still works.
 
+## Long-range scan
+- [ ] `/ult` -> Targeting -> Finding mobs: "Find mobs with" defaults to "Long-range scan and
+      nameplates".
+- [ ] Walking toward a quest mob, it appears on the target bar (level "??", tooltip "Nearby,
+      beyond nameplate range") before its nameplate shows; the target key/button targets it.
+      Once the nameplate shows, the entry gets its level, marker and filters as usual.
+- [ ] No "Ultimate has been blocked from an action" popup appears while scanning, and nothing
+      is ever targeted by itself. Other add-ons' warnings still appear.
+- [ ] `/ult errors` doesn't list the scan's own refusals.
+- [ ] With "Nameplates only", mobs appear only with their nameplates, as before.
+- [ ] Nothing is scanned in combat.
+
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest
       grades) starts with "Enable <feature>". Unticking it turns the feature off, greys out

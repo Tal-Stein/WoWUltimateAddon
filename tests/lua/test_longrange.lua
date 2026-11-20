@@ -60,6 +60,7 @@ local function setup()
   QI.byName = { ["Murloc Streamrunner"] = entry("Murloc Streamrunner"), ["Murloc"] = entry("Murloc") }
   ns.db.rareScanner.watch = { ["Mother Fang"] = true }
   ns.db.targeting.detection = "longRange"
+  frameHide(popup)
   LR:Reset()
   LR:InstallPopupGuard()
 end
@@ -129,6 +130,17 @@ describe("Long-range scan (RestedXP's way)", function()
     UnitOnTaxi = function() return true end
     LR:Scan(GetTime())
     assertEq(#calls, 0)
+  end)
+  it("pauses while another dialog is open (its popup would cancel e.g. 'Delete this item?')", function()
+    setup()
+    popup.text:SetText("Do you want to destroy Linen Cloth?")
+    popup:Show()
+    LR:Scan(GetTime())
+    assertEq(#calls, 0)
+    assertTrue(popup.shown, "the dialog stays open")
+    popup:Hide()
+    LR:Scan(GetTime())
+    assertEq(#calls, 3)
   end)
   it("does nothing with nameplates only", function()
     setup()

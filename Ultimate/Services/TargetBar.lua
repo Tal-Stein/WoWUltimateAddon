@@ -119,16 +119,12 @@ for i = 1, MAX_BUTTONS do
       self:SetAttribute("macrotext", "/target " .. unit .. (marker and ("\n" .. marker) or ""))
     end
   end)
-  -- A long-range find that targets nothing when clicked (corpses, out of reach) is dropped for
-  -- a while. PostClick runs after the secure macro, so the result is already visible.
+  -- Put the by-name macro back after a cycling click.
   b:HookScript("PostClick", function(self, button, down)
     if self.cycleRestore and not InCombatLockdown() then
       self:SetAttribute("macrotext", self.cycleRestore)
       self.cycleRestore = nil
     end
-    if button ~= "LeftButton" or down then return end
-    local c = Bar.byName and self.candidateName and Bar.byName[self.candidateName]
-    if c and c.farAway and #(c.mobs or {}) == 0 and ns.LongRange then ns.LongRange.AfterClick(c.name) end
   end)
   b.level = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.level:SetPoint("TOPLEFT", 2, -2)

@@ -54,10 +54,22 @@ function LR:Found(name, now)
   return at ~= nil and (now or GetTime()) - at <= MATCH_TIMEOUT
 end
 
--- RestedXP's shouldTargetCheck: not in a raid or on a flight path.
+-- Is any game dialog open? The refusal's popup is "exclusive": showing it cancels another
+-- exclusive dialog ("Delete this item?", and so on). Our own popup is hidden at once, so any
+-- dialog showing is someone else's.
+local function dialogOpen()
+  for i = 1, 4 do
+    local d = _G["StaticPopup" .. i]
+    if d and d.IsShown and d:IsShown() then return true end
+  end
+  return false
+end
+
+-- RestedXP's shouldTargetCheck (not in a raid or on a flight path), and no dialog open.
 local function shouldScan()
   if ns.Safe.read(IsInRaid) then return false end
   if ns.Safe.read(UnitOnTaxi, "player") then return false end
+  if dialogOpen() then return false end
   return true
 end
 

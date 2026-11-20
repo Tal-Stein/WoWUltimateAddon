@@ -10,7 +10,8 @@ local L = ns.L
 local LR = { found = {}, scanning = false, stats = {} }
 ns.LongRange = LR
 
-local HOLD = 10   -- seconds a find stays valid without a new answer (and between re-pings)
+local HOLD = 15   -- seconds a find stays listed after its last answer
+local REFRESH = 6 -- a find is asked about again after this long, well before it runs out
 local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
 
 local function o() return ns.db.targeting end
@@ -86,7 +87,8 @@ function LR:Ping(now)
   local visible = self.visible or plateNames()
   local names = {}
   for name in pairs(wantedNames()) do
-    if not visible[name] and not self:Found(name, now) then names[#names + 1] = name end
+    local at = self.found[name]
+    if not visible[name] and (not at or now - at >= REFRESH) then names[#names + 1] = name end
   end
   if #names == 0 then return end
   table.sort(names)

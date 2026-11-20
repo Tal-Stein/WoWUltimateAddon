@@ -125,6 +125,18 @@ function M:Update(ranked, byName)
       end
     end
   end
+  -- The mob you've targeted always gets a marker once its nameplate exists, even with
+  -- "top only" on, so it's easy to pick out.
+  if o.enabled then
+    local name = ns.Safe.read(UnitName, "target")
+    local plate = name and byName and byName[name] and C_NamePlate and C_NamePlate.GetNamePlateForUnit
+      and ns.Safe.read(C_NamePlate.GetNamePlateForUnit, "target")
+    if plate and not wanted[plate] then
+      local c = byName[name]
+      wanted[plate] = { top = true, rare = c.kind == "rare" or c.isRare, level = c.level }
+    end
+  end
+  self.last = { ranked, byName }
   for plate, f in pairs(self.active) do
     if not wanted[plate] then
       release(f)
@@ -158,6 +170,9 @@ function M:ActiveCount()
 end
 
 ns:On("ULT_TARGETS_CHANGED", M, function(_, ranked, byName) M:Update(ranked, byName) end)
+ns:On("PLAYER_TARGET_CHANGED", M, function()
+  if M.last then M:Update(M.last[1], M.last[2]) end
+end)
 ns:On("ULT_SETTING_CHANGED", M, function(_, path)
   if path and path:find("^targeting%.markers") then
     -- Re-anchor everything so offset/size changes apply.

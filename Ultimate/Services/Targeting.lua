@@ -17,7 +17,7 @@ ns.DB:RegisterDefaults("targeting", {
   marker = 8, -- raid target icon index 1-8 (8 = skull), 0 = off
   markerSoloOnly = true,
   detection = "longRange", -- "longRange" (scan + nameplates) or "nameplates"
-  scanInterval = 1,
+  pingInterval = 0.5,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
   bar = { enabled = true, portraits = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },

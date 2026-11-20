@@ -219,3 +219,26 @@ describe("Long-range scan report and diary", function()
     assertEq(ns.global.scanDiary[1].name, "Mob 6")
   end)
 end)
+
+describe("Long-range scan self-test (/ult scan test)", function()
+  it("reports whether the game answered for a name no creature has, and leaves no find", function()
+    setup()
+    local answered = LR:SelfTest()
+    assertFalse(answered)
+    nearby[LR.TEST_NAME] = true -- a client that answers for anything
+    withPopup = true
+    answered = LR:SelfTest()
+    assertTrue(answered)
+    assertFalse(LR:Found(LR.TEST_NAME), "a test is never a find")
+    assertFalse(popup.shown, "its popup is hidden too")
+  end)
+  it("notes in the diary whether you had a target when a find was made", function()
+    setup()
+    ns.global.scanDiary = {}
+    UnitExists = function(u) return u == "target" end
+    nearby["Murloc"] = true
+    LR:Scan(GetTime())
+    UnitExists = nil
+    assertTrue(ns.global.scanDiary[1].hadTarget)
+  end)
+end)

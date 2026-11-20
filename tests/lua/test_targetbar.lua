@@ -272,3 +272,35 @@ describe("UltimateTargetBarButton click handler", function()
     end
   end)
 end)
+
+describe("TargetBar cycling", function()
+  local function click(b)
+    b:GetScript("PreClick")(b, "LeftButton", false)
+    local text = b:GetAttribute("macrotext")
+    b:GetScript("PostClick")(b, "LeftButton", false)
+    return text
+  end
+  it("clicking again moves to the next mob with that name", function()
+    local current
+    UnitIsUnit = function(a, b) return b == "target" and a == current end
+    UnitIsDead = function() return false end
+    UnitExists = function(u) return u ~= "target" or current ~= nil end
+    ns:Fire("ULT_TARGETS_CHANGED", { "Murloc" }, { Murloc = { name = "Murloc", count = 3, kind = "quest",
+      mobs = { { unit = "nameplate1" }, { unit = "nameplate4" }, { unit = "nameplate7" } } } })
+    local b = UltimateTargetBarButton1
+    assertEq(click(b), "/target nameplate1")
+    current = "nameplate1"
+    assertEq(click(b), "/target nameplate4")
+    current = "nameplate4"
+    assertEq(click(b), "/target nameplate7")
+    current = "nameplate7"
+    assertEq(click(b), "/target nameplate1", "wraps around")
+    assertEq(b:GetAttribute("macrotext"), "/cleartarget\n/targetexact Murloc", "restored after the click")
+  end)
+  it("in combat it keeps the plain by-name macro", function()
+    __inCombat = true
+    local b = UltimateTargetBarButton1
+    assertEq(click(b), "/cleartarget\n/targetexact Murloc")
+    __inCombat = false
+  end)
+end)

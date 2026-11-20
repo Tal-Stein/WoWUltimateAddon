@@ -17,7 +17,7 @@ ns.DB:RegisterDefaults("targeting", {
   marker = 8, -- raid target icon index 1-8 (8 = skull), 0 = off
   markerSoloOnly = true,
   detection = "longRange", -- "longRange" (scan + nameplates) or "nameplates"
-  pingInterval = 0.5,
+  scanInterval = 0.25,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
   bar = { enabled = true, portraits = true, max = 24, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
@@ -32,18 +32,6 @@ button:RegisterForClicks("AnyUp", "AnyDown")
 button:SetAttribute("useOnKeyDown", false)
 button:Hide() -- clicked through its key binding or /click; never shown
 T.button = button
--- The key's primary name, if it was a long-range find with no nameplate, must end up targeted
--- (alive); otherwise the scan drops it for a while.
-button:HookScript("PreClick", function(_, _, down)
-  if not down then T.clicking = T.cursor:currentName() end
-end)
-button:HookScript("PostClick", function(_, _, down)
-  if down then return end
-  local name = T.clicking
-  T.clicking = nil
-  local c = name and T.byName and T.byName[name]
-  if c and c.farAway and #(c.mobs or {}) == 0 and ns.LongRange then ns.LongRange.AfterClick(name) end
-end)
 
 local function opts() return ns.db.targeting end
 

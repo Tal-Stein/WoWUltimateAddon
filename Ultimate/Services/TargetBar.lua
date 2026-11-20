@@ -181,6 +181,17 @@ function Bar.NextUnit(c)
   return units[1]
 end
 
+-- The names on the bar's buttons right now, or nil when the bar is off (then nothing limits
+-- the nameplate markers).
+function Bar:ShownNames()
+  if not opts().enabled then return nil end
+  local set = {}
+  for _, b in ipairs(self.buttons) do
+    if b.candidateName then set[b.candidateName] = true end
+  end
+  return set
+end
+
 -- Non-protected visuals (icon, labels, counts). Safe in combat.
 function Bar:UpdateVisuals()
   for _, b in ipairs(self.buttons) do
@@ -267,6 +278,7 @@ function Bar:Layout(force)
     place()
     frame:SetShown(o.enabled and true or false)
     Bar:UpdateVisuals()
+    ns:Fire("ULT_TARGETBAR_LAID_OUT")
   end)
   self:UpdateVisuals()
 end

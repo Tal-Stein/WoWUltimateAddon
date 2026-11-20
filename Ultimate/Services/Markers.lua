@@ -114,10 +114,13 @@ end
 function M:Update(ranked, byName)
   local wanted = {}
   local o = opts()
+  -- Only names the target bar shows get markers, so every marked mob can be clicked there (the
+  -- bar holds its first few names, and can't take new ones during combat).
+  local onBar = ns.TargetBar and ns.TargetBar.ShownNames and ns.TargetBar:ShownNames()
   if o.enabled then
     for i, name in ipairs(ranked or {}) do
       if o.topOnly and i > 1 then break end
-      local c = byName[name]
+      local c = (not onBar or onBar[name]) and byName[name]
       for _, mob in ipairs(c and c.mobs or {}) do
         if mob.plate and not mob.tapped then
           wanted[mob.plate] = { top = i == 1, rare = c.kind == "rare" or c.isRare, level = mob.level or c.level }
@@ -170,6 +173,9 @@ function M:ActiveCount()
 end
 
 ns:On("ULT_TARGETS_CHANGED", M, function(_, ranked, byName) M:Update(ranked, byName) end)
+ns:On("ULT_TARGETBAR_LAID_OUT", M, function()
+  if M.last then M:Update(M.last[1], M.last[2]) end
+end)
 ns:On("PLAYER_TARGET_CHANGED", M, function()
   if M.last then M:Update(M.last[1], M.last[2]) end
 end)

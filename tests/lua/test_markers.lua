@@ -116,3 +116,25 @@ describe("Markers", function()
     m.anim, m.animDistance, m.animTime, m.pulseScale = "bob", 12, 0.8, 1.15
   end)
 end)
+
+describe("Markers and the target bar", function()
+  it("marks only names the bar shows, so every marked mob can be clicked there", function()
+    ns.db.targeting.bar.max = 1
+    fire()
+    assertTrue(M:ForPlate(plateA) ~= nil)
+    assertNil(M:ForPlate(plateB), "B didn't fit on the bar")
+    ns.db.targeting.bar.max = 6
+    fire()
+    assertTrue(M:ForPlate(plateB) ~= nil)
+  end)
+  it("in combat a new name waits for the bar too", function()
+    ns:Fire("ULT_TARGETS_CHANGED", { "A" }, { A = { name = "A", level = 5, kind = "quest",
+      mobs = { { plate = plateA, tapped = false, level = 5 } } } })
+    __inCombat = true
+    fire()
+    assertNil(M:ForPlate(plateB), "not on the bar yet")
+    __inCombat = false
+    __fire("PLAYER_REGEN_ENABLED")
+    assertTrue(M:ForPlate(plateB) ~= nil, "added with the bar after combat")
+  end)
+end)

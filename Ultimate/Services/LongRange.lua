@@ -13,6 +13,10 @@ ns.LongRange = LR
 local HOLD = 15   -- seconds a find stays listed after its last answer
 local REFRESH = 6 -- a find is asked about again after this long, well before it runs out
 local FAILED_HOLD = 60 -- a name you clicked that targeted nothing stays off the list this long
+-- Self-check: every CANARY_EVERY-th question is about a name no unit can have. If the game
+-- answers that, its answers prove nothing, and the scan stops showing finds.
+local CANARY, CANARY_EVERY = "Ultimate Probe Qzxv", 10
+LR.CANARY = CANARY
 local WINDOW = 1  -- seconds after a ping in which an answer (notice or popup) belongs to it
 
 local function o() return ns.db.targeting end
@@ -20,7 +24,8 @@ function LR.Enabled() return ns.db ~= nil and o().detection == "longRange" end
 
 function LR:Reset()
   self.found, self.visible, self.pending, self.lastName, self.failed = {}, nil, nil, nil, {}
-  self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0 }
+  self.stats = { pings = 0, events = 0, lateEvents = 0, popups = 0, canaries = 0 }
+  self.unreliable = false
 end
 LR:Reset()
 
@@ -87,6 +92,14 @@ local function answer(source)
   local p = pending()
   if not p then return false end
   p.answered = true
+  if p.name == CANARY then
+    if not LR.unreliable then
+      LR.unreliable = true
+      if ns.ErrorLog then ns.ErrorLog:Record("scan", "canary", "The game answered for a made-up name; long-range finds are hidden.") end
+      if ns.Targeting and ns.Targeting.RequestRefresh then ns.Targeting:RequestRefresh() end
+    end
+    return true
+  end
   if not LR:Found(p.name, p.now) and ns.Targeting and ns.Targeting.RequestRefresh then
     ns.Targeting:RequestRefresh()
   end
@@ -123,7 +136,12 @@ function LR:Ping(now)
   for _, name in ipairs(names) do
     if self.lastName and name > self.lastName then pick = name; break end
   end
-  self.lastName = pick
+  if (self.stats.pings + 1) % CANARY_EVERY == 0 then
+    pick = CANARY
+    self.stats.canaries = self.stats.canaries + 1
+  else
+    self.lastName = pick
+  end
   self.pending = { name = pick, at = GetTime(), now = now }
   self.stats.pings = self.stats.pings + 1
   self.scanning = true
@@ -139,7 +157,7 @@ end)
 
 -- Target bar candidates for found names that no nameplate shows yet.
 function LR.Candidates(mobs)
-  if not LR.Enabled() then return {} end
+  if not LR.Enabled() or LR.unreliable then return {} end
   local shown = {}
   for _, mob in ipairs(mobs or {}) do if mob.name then shown[mob.name] = true end end
   local list = {}
@@ -208,8 +226,15 @@ ns:On("ULT_DEBUG_SCAN", LR, function()
   local st = LR.stats
   ns:Print(string.format(L.LONG_RANGE_REPORT, LR.Enabled() and L.ON or L.OFF, st.pings or 0,
     st.events or 0, st.lateEvents or 0, st.popups or 0))
+  ns:Print(string.format(LR.unreliable and L.LONG_RANGE_UNRELIABLE or L.LONG_RANGE_SELFCHECK, st.canaries or 0))
   local names = {}
   for name in pairs(LR.found) do if LR:Found(name) then names[#names + 1] = name end end
   table.sort(names)
   ns:Print("  " .. (#names > 0 and table.concat(names, ", ") or L.LONG_RANGE_NONE))
+  local dropped = {}
+  for name, at in pairs(LR.failed) do
+    if GetTime() - at < 60 then dropped[#dropped + 1] = name end
+  end
+  table.sort(dropped)
+  if #dropped > 0 then ns:Print(string.format(L.LONG_RANGE_DROPPED, table.concat(dropped, ", "))) end
 end)

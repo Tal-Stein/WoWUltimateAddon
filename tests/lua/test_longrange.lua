@@ -115,6 +115,23 @@ describe("Long-range scan", function()
     sweep(GetTime())
     assertTrue(LR:Found("Murloc"), "back after a minute if it still answers")
   end)
+  it("checks itself with a made-up name, and stops trusting answers if even that answers", function()
+    setup()
+    nearby["Murloc"] = true
+    local canary
+    for _ = 1, 30 do
+      LR:Ping(GetTime())
+      if calls[#calls] and string.find(calls[#calls], "Ultimate", 1, true) then canary = calls[#calls] end
+      __advance(1.1)
+    end
+    assertTrue(canary ~= nil, "a made-up name gets asked now and then")
+    assertTrue(LR:Found("Murloc"))
+    assertFalse(LR.unreliable)
+    nearby[canary] = true -- this game answers for anything
+    for _ = 1, 30 do LR:Ping(GetTime()); __advance(1.1) end
+    assertTrue(LR.unreliable)
+    assertEq(#LR.Candidates({}), 0, "no finds shown when answers prove nothing")
+  end)
   it("credits an answer that arrives just after the ping to the name just pinged", function()
     setup()
     mode = "late"

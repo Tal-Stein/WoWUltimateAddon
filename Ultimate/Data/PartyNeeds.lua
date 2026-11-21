@@ -33,6 +33,8 @@ end
 -- { questID, player, objIndex, kind ("monster"|"item"), id, have, need }
 function PN:Needs()
   local list = {}
+  -- Questie keeps the logs of people you've left; out of a group, nobody's needs count.
+  if type(IsInGroup) == "function" and not ns.Safe.read(IsInGroup) then return list end
   local logs = remoteLogs()
   if not logs then return list end
   for questID, players in pairs(logs) do

@@ -2,12 +2,20 @@ local ADDON, ns = ...
 local UI = ns.UI
 
 -- Overhead markers: a large animated quest icon above each relevant, untagged mob's nameplate.
+-- Elites also get a spinning burst behind the icon, both in gold (silver for rare elites).
 -- Purely visual (not secure), so it updates in combat too.
 local M = { pool = {}, active = {} }
 ns.Markers = M
 
 local QUEST_ATLASES = { "QuestNormal", "UI-QuestPoi-QuestNumber-SuperTracked" }
 local RARE_ATLASES = { "VignetteKill", "nameplates-icon-elite-silver" }
+local BURST_TEXTURE = "Interface\\Cooldown\\star4"
+local BURST_SCALE = 2 -- times the icon's size
+local BURST_TURN = 3 -- seconds per turn
+local TIER_COLORS = {
+  gold = { r = 1, g = 0.78, b = 0.1 },
+  silver = { r = 0.8, g = 0.88, b = 1 },
+}
 
 local function pickAtlas(list)
   if not (C_Texture and C_Texture.GetAtlasInfo) then return nil end
@@ -52,6 +60,18 @@ local function build()
   f.pulse:SetLooping("BOUNCE")
   f.grow = f.pulse:CreateAnimation("Scale")
   f.grow:SetSmoothing("IN_OUT")
+  -- Elite burst: its own motion, so an elite stands out by shape and movement, not only color
+  -- (an ordinary mark can be yellow too). It rides along with the bob or pulse.
+  f.burst = f:CreateTexture(nil, "BACKGROUND")
+  f.burst:SetTexture(BURST_TEXTURE)
+  f.burst:SetBlendMode("ADD")
+  f.burst:SetPoint("CENTER", f.tex, "CENTER")
+  f.burst:Hide()
+  f.spin = f.burst:CreateAnimationGroup()
+  f.spin:SetLooping("REPEAT")
+  local turn = f.spin:CreateAnimation("Rotation")
+  turn:SetDegrees(-360)
+  turn:SetDuration(BURST_TURN)
   return f
 end
 
@@ -75,22 +95,42 @@ end
 
 local function release(f)
   stopAnims(f)
+  f.spin:Stop()
   f:Hide()
   f:ClearAllPoints()
   f.plate = nil
   M.pool[#M.pool + 1] = f
 end
 
-local function style(f, top, rare, level)
+local function styleBurst(f, color, size, animated)
+  f.burst:SetShown(color ~= nil)
+  if color then
+    f.burst:SetSize(size * BURST_SCALE, size * BURST_SCALE)
+    f.burst:SetVertexColor(color.r, color.g, color.b)
+  end
+  if not (color and animated) then
+    f.spin:Stop()
+  elseif not f.spin:IsPlaying() then
+    f.spin:Play()
+  end
+end
+
+local function style(f, top, rare, level, tier)
   local o = opts()
   local size = o.size or 40
-  if top or rare then size = math.floor(size * 1.4) end
+  if top or rare or tier then size = math.floor(size * 1.4) end
   f.markerSize = size
   f.isRare = rare
   f:SetSize(size, size)
   art(f.tex, rare)
+  -- The icon art is yellow and vertex colors multiply, so tint a desaturated copy for elites.
+  f.tex:SetDesaturated(tier ~= nil)
+  local tierColor = tier and TIER_COLORS[tier]
+  styleBurst(f, tierColor, size, o.anim ~= "none")
   local c
-  if rare then
+  if tierColor then
+    c = tierColor
+  elseif rare then
     c = { r = 0.85, g = 0.85, b = 0.95 }
   elseif o.colorMode == "difficulty" then
     c = UI.DifficultyColor(level)
@@ -98,7 +138,7 @@ local function style(f, top, rare, level)
     c = UI.NormalColor()
   end
   f.tex:SetVertexColor(c.r, c.g, c.b)
-  f:SetAlpha(top and 1 or 0.8)
+  f:SetAlpha((top or tier) and 1 or 0.8)
   -- style() runs on every scan (every 0.5s); restarting the loop each time made it jump back to
   -- its start mid-bounce. Only (re)start when the animation style changes.
   local group = (o.anim == "bob" and f.bob) or (o.anim == "pulse" and f.pulse) or nil
@@ -120,7 +160,8 @@ function M:Update(ranked, byName)
       local c = byName[name]
       for _, mob in ipairs(c and c.mobs or {}) do
         if mob.plate and not mob.tapped then
-          wanted[mob.plate] = { top = i == 1, rare = c.kind == "rare" or c.isRare, level = mob.level or c.level }
+          wanted[mob.plate] = { top = i == 1, rare = c.kind == "rare" or c.isRare, level = mob.level or c.level,
+            tier = ns.Levels.eliteTier(mob.level, mob.classification) }
         end
       end
     end
@@ -145,7 +186,7 @@ function M:Update(ranked, byName)
         f = nil
       end
     end
-    if f then style(f, w.top, w.rare, w.level) end
+    if f then style(f, w.top, w.rare, w.level, w.tier) end
   end
 end
 

@@ -106,3 +106,95 @@ describe("Markers", function()
     m.anim, m.animDistance, m.animTime, m.pulseScale = "bob", 12, 0.8, 1.15
   end)
 end)
+
+describe("Elite markers", function()
+  local plate = CreateFrame("Frame")
+  local o = ns.db.targeting.markers
+  -- The mob under test is second in rank, so nothing here comes from being the top target.
+  local function mark(classification, level, kind)
+    local byName = {
+      A = { name = "A", level = 5, mobs = { { plate = plateA, level = 5 } }, kind = "quest" },
+      E = { name = "E", kind = kind or "quest",
+        mobs = { { plate = plate, level = level or 12, classification = classification } } },
+    }
+    ns:Fire("ULT_TARGETS_CHANGED", { "A", "E" }, byName)
+    return M:ForPlate(plate)
+  end
+  local function isGold(c) return c[1] > c[2] and c[2] > c[3] and c[3] < 0.4 end
+  local function isSilver(c) return c[3] >= c[2] and c[2] >= c[1] and c[1] > 0.6 end
+
+  it("elites and bosses get a large, opaque gold mark with a spinning burst", function()
+    o.anim = "bob"
+    for _, case in ipairs({ { "elite", 12 }, { "worldboss", 20 }, { "normal", -1 } }) do
+      local f = mark(case[1], case[2])
+      assertTrue(isGold(f.tex.vertexColor), case[1] .. " is gold")
+      assertTrue(isGold(f.burst.vertexColor), case[1] .. " burst is gold")
+      assertTrue(f.tex.desaturated, "the yellow art is desaturated so the tint is true")
+      assertTrue(f.burst.shown and f.spin:IsPlaying(), "burst spins")
+      assertTrue(f.markerSize > o.size and f.alpha == 1)
+    end
+  end)
+  it("rare elites are silver, whether a quest mob or a rare", function()
+    for _, kind in ipairs({ "quest", "rare" }) do
+      local f = mark("rareelite", 12, kind)
+      assertTrue(isSilver(f.tex.vertexColor) and isSilver(f.burst.vertexColor))
+      assertTrue(f.burst.shown and f.spin:IsPlaying())
+    end
+  end)
+  it("ordinary mobs and plain rares have no burst", function()
+    for _, case in ipairs({ { "normal" }, { "rare", "rare" } }) do
+      local f = mark(case[1], 12, case[2])
+      assertFalse(f.burst.shown or f.spin:IsPlaying(), case[1])
+      assertFalse(f.tex.desaturated, case[1])
+    end
+  end)
+  it("a marker that was elite turns fully ordinary again", function()
+    mark("elite")
+    local f = mark("normal")
+    assertFalse(f.burst.shown or f.spin:IsPlaying() or f.tex.desaturated)
+    assertEq(f.markerSize, o.size)
+  end)
+  it("doesn't restart the burst on every scan", function()
+    local f = mark("elite")
+    local plays = f.spin.plays
+    mark("elite"); mark("elite")
+    assertEq(f.spin.plays, plays)
+  end)
+  it("keeps the burst but holds it still when animation is off", function()
+    o.anim = "none"
+    local f = mark("elite")
+    assertTrue(f.burst.shown)
+    assertFalse(f.spin:IsPlaying())
+    o.anim = "bob"
+  end)
+  it("stops the burst when the marker is released", function()
+    local f = mark("elite")
+    ns:Fire("ULT_TARGETS_CHANGED", {}, {})
+    assertFalse(f.spin:IsPlaying())
+  end)
+end)
+
+describe("Elite markers with the alert", function()
+  it("the elite that plays the elite alert has its gold burst a quarter second later", function()
+    local plate, unit = CreateFrame("Frame"), "nameplate1"
+    plate.namePlateUnitToken = unit
+    C_NamePlate.GetNamePlates = function() return { plate } end
+    C_NamePlate.GetNamePlateForUnit = function(u) if u == unit then return plate end end
+    UnitGUID = function(u) if u == unit then return "Creature-0-1-2-3-99999-000001" end end
+    UnitName = function(u) if u == unit then return "Test Ogre" end end
+    UnitLevel = function(u) return u == unit and 12 or 12 end
+    UnitClassification = function() return "elite" end
+    UnitCanAttack = function() return true end
+    ns.QuestIndex.byName = { ["Test Ogre"] = { name = "Test Ogre",
+      quests = { { questID = 1, title = "Ogres", objIndex = 1, text = "Test Ogre slain: 0/1", have = 0, need = 1 } } } }
+    local heard
+    local notify = ns.Alerts.Notify
+    ns.Alerts.Notify = function(a) heard = a.soundKey end
+    __fire("NAME_PLATE_UNIT_ADDED", unit)
+    ns.Alerts.Notify = notify
+    assertEq(heard, ns.db.questTargeting.alerts.sounds.elite)
+    __advance(0.3)
+    local f = M:ForPlate(plate)
+    assertTrue(f and f.burst.shown and f.spin:IsPlaying(), "burst is up")
+  end)
+end)

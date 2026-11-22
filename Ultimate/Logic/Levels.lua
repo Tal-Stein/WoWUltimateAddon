@@ -21,6 +21,13 @@ function Levels.isBoss(level, classification)
   return level == -1 or classification == "worldboss"
 end
 
+-- Like Blizzard's elite portrait frames: gold for elites and bosses, silver for rare elites.
+function Levels.eliteTier(level, classification)
+  if classification == "rareelite" then return "silver" end
+  if classification == "elite" or Levels.isBoss(level, classification) then return "gold" end
+  return nil
+end
+
 -- Highest level that gives no XP ("grey"), Classic formula.
 function Levels.greyLevel(playerLevel)
   if playerLevel <= 5 then return 0 end

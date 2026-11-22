@@ -130,6 +130,9 @@ function Frame:SetScale(x, y) self.scaleX, self.scaleY = x, y end
 function Frame:SetOffset(x, y) self.offsetX, self.offsetY = x, y end
 function Frame:SetSnapToPixelGrid(v) self.snapToPixelGrid = v end
 function Frame:SetTexelSnappingBias(v) self.texelSnappingBias = v end
+function Frame:SetVertexColor(r, g, b) self.vertexColor = { r, g, b } end
+function Frame:SetDesaturated(v) self.desaturated = v end
+function Frame:SetAlpha(v) self.alpha = v end
 function Frame:SetText(t) self.text = t end
 function Frame:SetTexture(t) self.texture = t end
 function Frame:GetTexture() return self.texture end

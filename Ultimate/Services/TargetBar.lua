@@ -187,7 +187,7 @@ function Bar:UpdateVisuals()
         b.badge:SetTexture(iconFor(c))
         b.badge:Show()
       elseif icon and opts().portraits ~= false and ns.Portraits and ns.Portraits:Apply(icon, c.name) then
-        -- No unit (e.g. a long-range find): the portrait remembered from an earlier sighting.
+        -- No unit to draw from: the portrait remembered from an earlier sighting.
         b.badge:SetTexture(iconFor(c))
         b.badge:Show()
       else
@@ -282,6 +282,11 @@ ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
     Bar.ranked = Bar.ranked or {}
     Bar:Layout(true)
   end
+end)
+
+-- An entry's remembered portrait finished loading.
+ns:On("ULT_PORTRAIT_READY", Bar, function()
+  if Bar.byName then Bar:UpdateVisuals() end
 end)
 
 -- Group changes can turn the solo-only raid marker on or off.

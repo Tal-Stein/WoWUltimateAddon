@@ -18,7 +18,7 @@ ns.DB:RegisterDefaults("targeting", {
   markerSoloOnly = true,
   rareFirst = true,
   ranking = ns.Ranking.defaultCriteria(),
-  bar = { enabled = true, portraits = true, max = 6, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
+  bar = { enabled = true, portraits = true, max = 24, perRow = 6, orientation = "HORIZONTAL", scale = 1, locked = false },
   markers = { enabled = true, size = 40, offset = 10, colorMode = "difficulty", anim = "bob",
     animDistance = 16, animTime = 0.8, pulseScale = 1.15, topOnly = false },
 })
@@ -51,6 +51,12 @@ ns:On("ULT_DB_READY", T, function()
   if o and (o.markerVersion or 1) < 2 then
     if o.marker == 0 then o.marker = 8 end
     o.markerVersion = 2
+  end
+  -- The bar used to hold only 6 names, so identified mobs could be marked yet missing from it.
+  -- It now holds every identified name (up to 24, wrapping into rows); lift the old default once.
+  if o and o.bar and (o.barVersion or 1) < 2 then
+    if o.bar.max == 6 then o.bar.max = 24 end
+    o.barVersion = 2
   end
 end)
 

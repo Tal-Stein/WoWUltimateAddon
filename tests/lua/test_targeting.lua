@@ -29,6 +29,18 @@ describe("Targeting", function()
     ns.DB:Load()
     assertEq(ns.db.targeting.marker, 0, "choosing 'none' afterwards sticks")
   end)
+  it("lets the bar hold 24 names, lifting the old default of 6 once", function()
+    UltimateDB = { scopeVersion = 2, scope = "account", profile = { targeting = { bar = { max = 6 } } } }
+    ns.DB:Load()
+    assertEq(ns.db.targeting.bar.max, 24)
+    ns.db.targeting.bar.max = 6
+    ns.DB:Load()
+    assertEq(ns.db.targeting.bar.max, 6, "choosing 6 afterwards sticks")
+    UltimateDB = { scopeVersion = 2, scope = "account", profile = { targeting = { bar = { max = 10 } } } }
+    ns.DB:Load()
+    assertEq(ns.db.targeting.bar.max, 10, "a chosen size is kept")
+    ns.db.targeting.marker = 0 -- the tests below expect no marker line
+  end)
   it("button is a secure macro button", function()
     assertEq(UltimateTargetButton:GetAttribute("type"), "macro")
     assertTrue(UltimateTargetButton.secure)

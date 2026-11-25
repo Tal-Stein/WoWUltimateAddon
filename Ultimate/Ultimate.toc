@@ -35,6 +35,7 @@ Data\QuestFacts.lua
 Data\QuestTimes.lua
 Data\GearValue.lua
 Services\Nameplates.lua
+Services\Portraits.lua
 Services\UIUtil.lua
 Services\Menu.lua
 Services\Targeting.lua

@@ -106,6 +106,26 @@ for i = 1, MAX_BUTTONS do
   b:HookScript("OnClick", function(self, button, down)
     if button == "RightButton" and not down then Bar.ShowMenu(self) end
   end)
+  -- Cycling: with several of that mob on nameplates, each click targets the next one. Out of
+  -- combat the macro may be rewritten just for this click (PreClick runs before the secure
+  -- handler) and is put back in PostClick; in combat the plain by-name macro stays.
+  b:HookScript("PreClick", function(self, button, down)
+    if button ~= "LeftButton" or down or InCombatLockdown() then return end
+    local c = Bar.byName and self.candidateName and Bar.byName[self.candidateName]
+    local unit = c and Bar.NextUnit(c)
+    if unit then
+      self.cycleRestore = self:GetAttribute("macrotext")
+      local marker = ns.Targeting:MarkerLine()
+      self:SetAttribute("macrotext", "/target " .. unit .. (marker and ("\n" .. marker) or ""))
+    end
+  end)
+  -- PostClick runs after the secure macro: put the by-name macro back.
+  b:HookScript("PostClick", function(self, button, down)
+    if self.cycleRestore and not InCombatLockdown() then
+      self:SetAttribute("macrotext", self.cycleRestore)
+      self.cycleRestore = nil
+    end
+  end)
   b.level = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   b.level:SetPoint("TOPLEFT", 2, -2)
   b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -141,6 +161,20 @@ local function unitOf(c)
   end
 end
 
+-- The nameplate unit a click on this entry should target: the living one after your current
+-- target in the list (wrapping), or the first if your target isn't one of them.
+function Bar.NextUnit(c)
+  local units = {}
+  for _, m in ipairs(c.mobs or {}) do
+    if m.unit and not ns.Safe.read(UnitIsDead, m.unit) then units[#units + 1] = m.unit end
+  end
+  if #units == 0 then return nil end
+  for i, u in ipairs(units) do
+    if ns.Safe.read(UnitIsUnit, u, "target") then return units[i % #units + 1] end
+  end
+  return units[1]
+end
+
 -- Non-protected visuals (icon, labels, counts). Safe in combat.
 function Bar:UpdateVisuals()
   for _, b in ipairs(self.buttons) do
@@ -150,6 +184,10 @@ function Bar:UpdateVisuals()
       local unit = opts().portraits ~= false and unitOf(c)
       if icon and unit and SetPortraitTexture then
         SetPortraitTexture(icon, unit)
+        b.badge:SetTexture(iconFor(c))
+        b.badge:Show()
+      elseif icon and opts().portraits ~= false and ns.Portraits and ns.Portraits:Apply(icon, c.name) then
+        -- No unit to draw from: the portrait remembered from an earlier sighting.
         b.badge:SetTexture(iconFor(c))
         b.badge:Show()
       else
@@ -244,6 +282,11 @@ ns:On("ULT_SETTING_CHANGED", Bar, function(_, path)
     Bar.ranked = Bar.ranked or {}
     Bar:Layout(true)
   end
+end)
+
+-- An entry's remembered portrait finished loading.
+ns:On("ULT_PORTRAIT_READY", Bar, function()
+  if Bar.byName then Bar:UpdateVisuals() end
 end)
 
 -- Group changes can turn the solo-only raid marker on or off.

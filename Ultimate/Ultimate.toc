@@ -22,6 +22,7 @@ Logic\AlertGate.lua
 Logic\ItemRelevance.lua
 Logic\Grid.lua
 Logic\ChatPlan.lua
+Logic\FlightTime.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua
@@ -34,6 +35,7 @@ Data\PartyNeeds.lua
 Data\QuestFacts.lua
 Data\QuestTimes.lua
 Data\GearValue.lua
+Data\FlightTimes.lua
 Services\Nameplates.lua
 Services\Portraits.lua
 Services\UIUtil.lua
@@ -50,6 +52,7 @@ Services\GradeSurfaces.lua
 Modules\RareScanner.lua
 Modules\QuestItems.lua
 Modules\FocusedChat.lua
+Modules\FlightTimes.lua
 Settings\Builder.lua
 Settings\Lists.lua
 Settings\Panel.lua

@@ -3,8 +3,8 @@ local L = ns.L
 local UI = ns.UI
 local FT = ns.FlightTime
 
--- Flight Times: how long each flight takes, on the flight master's map (right side of the
--- destination's name line in its tooltip), and a countdown bar in the air styled after the
+-- Flight Times: how long each flight takes, on the flight master's map (after the
+-- destination's name in its tooltip), and a countdown bar in the air styled after the
 -- game's own breath/fatigue bar. Times come from flights you've taken (account-wide, kept in
 -- UltimateDB.flightTimes) and otherwise from the shipped table (Data/FlightTimes.lua).
 local F = {}
@@ -78,9 +78,11 @@ function F.OnNodeEnter(button)
   local index = button:GetID()
   if ns.Safe.read(TaxiNodeGetType, index) ~= "REACHABLE" then return end
   local seconds = F.TimeFor(index)
-  if not seconds or not GameTooltipTextRight1 then return end
-  GameTooltipTextRight1:SetText("|cffffffff" .. FT.Format(seconds) .. "|r")
-  GameTooltipTextRight1:Show()
+  local line = GameTooltipTextLeft1
+  local name = seconds and line and ns.Safe.read(line.GetText, line)
+  if type(name) ~= "string" or name == "" then return end
+  -- Appended to the name itself: the name line wraps, and a right-hand text would overlap it.
+  line:SetText(name .. "  |cffffffff" .. FT.Format(seconds) .. "|r")
   GameTooltip:Show() -- re-fit the tooltip around the new text
 end
 

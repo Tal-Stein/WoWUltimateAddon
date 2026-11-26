@@ -21,15 +21,13 @@ TaxiNodeGetType = function(i) return i == 1 and "CURRENT" or "REACHABLE" end
 local onTaxi = false
 UnitOnTaxi = function() return onTaxi end
 
-GameTooltipTextRight1 = CreateFrame("Frame", nil)
-GameTooltipTextRight1.shown = false
+GameTooltipTextLeft1 = CreateFrame("Frame", nil)
 GameTooltip = CreateFrame("Frame", "GameTooltip")
 function GameTooltip:AddLine() end
 local blizzardEnter = 0
 function TaxiNodeOnButtonEnter(button)
   blizzardEnter = blizzardEnter + 1
-  GameTooltipTextRight1:SetText("")
-  GameTooltipTextRight1:Hide()
+  GameTooltipTextLeft1:SetText(TaxiNodeName(button:GetID())) -- the name line, which may wrap
 end
 local taken = {}
 function TakeTaxiNode(i) taken[#taken + 1] = i end
@@ -42,7 +40,8 @@ local F = ns.FlightTimesModule
 local function button(id) return { GetID = function() return id end } end
 local function hover(id)
   TaxiNodeOnButtonEnter(button(id))
-  return GameTooltipTextRight1.shown and GameTooltipTextRight1:GetText() or nil
+  local text = GameTooltipTextLeft1:GetText()
+  return text ~= TaxiNodeName(id) and text or nil
 end
 local function fly(id, seconds)
   __fire("TAXIMAP_OPENED")
@@ -61,13 +60,13 @@ describe("Flight times on the flight map", function()
   it("is on by default", function()
     assertTrue(ns.Modules:IsEnabled("flightTimes"))
   end)
-  it("puts the flight time on the destination's name line", function()
+  it("adds the flight time to the destination's name, so it wraps with it", function()
     __fire("TAXIMAP_OPENED")
-    assertEq(hover(2), "|cffffffff1:26|r")
+    assertEq(hover(2), "Sentinel Hill, Westfall  |cffffffff1:26|r")
     assertEq(blizzardEnter, 1, "Blizzard's own tooltip still runs")
   end)
   it("adds up the legs of a route with stops", function()
-    assertEq(hover(3), "|cffffffff3:36|r")
+    assertEq(hover(3), "Lakeshire, Redridge  |cffffffff3:36|r")
   end)
   it("shows nothing for an unknown flight or where you stand", function()
     assertNil(hover(4))
@@ -96,7 +95,7 @@ describe("Flight timer", function()
     land()
     assertEq(ns.global.flightTimes.Alliance[2][4], 80)
     __fire("TAXIMAP_OPENED")
-    assertEq(hover(2), "|cffffffff1:20|r")
+    assertEq(hover(2), "Sentinel Hill, Westfall  |cffffffff1:20|r")
   end)
   it("counts up when the time isn't known, and learns it", function()
     fly(4, 30)

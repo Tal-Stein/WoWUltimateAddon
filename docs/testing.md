@@ -96,8 +96,8 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
       Questie knows its NPC ID; otherwise the quest or rare icon.
 
 ## Flight Times
-- [ ] At a flight master, hovering a destination shows the flight time in white on the right of
-      its name line; the cost and route lines are unchanged. Your current node shows no time.
+- [ ] At a flight master, hovering a destination shows the flight time in white after its name,
+      wrapping with it without overlap; cost and route are unchanged. Your current node shows none.
 - [ ] A destination with stops shows the legs added up. A flight with no known time shows none.
 - [ ] Taking a flight: the bar appears at the top centre, like the breath bar, with the
       destination and a countdown, and hides on landing. An unknown flight counts up.

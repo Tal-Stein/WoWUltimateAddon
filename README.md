@@ -16,6 +16,7 @@ Requires **Questie**, including its **QuestieDB**.
 | **Focused Chat** | Keeps the chats that matter apart from the noise. A **Focused** chat tab collects the chats you pick (whispers, party, raid, guild, ...) and each can get its own tab for catching up. The tabs are additive: General keeps working as usual. Built from Blizzard's own chat tabs; set up with **Apply** (needs a reload). |
 | **Rare Scanner** | Always-on alert for rare, rare-elite and world-boss mobs, plus your own watch list. Rares go to the front of the target bar. |
 | **Quest Items** | Buttons for usable quest items, shown only when relevant (or always). You can bind them to keys, drag them to action bars, and shift-click to pin. |
+| **Flight Times** | Hover a destination on the flight master's map to see how long the flight takes, beside its name. In the air, a bar like the game's breath bar counts down to landing. Your own flights are timed and remembered for all your characters. |
 
 Blizzard doesn't allow add-ons to target anything without a key press or click, and Ultimate
 doesn't try to get around that. The add-on chooses *what* your key targets; you press it.
@@ -25,6 +26,13 @@ doesn't try to get around that. The add-on chooses *what* your key targets; you 
 - `/ult scan`: print the detected quest mobs, nearby candidates (with filter reasons) and rare history
 - `/ult reset`: reset bar positions
 - `/ult debug`: toggle debug output
+
+## Credits
+
+The built-in flight times (`Ultimate/Data/FlightTimes.lua`) come from
+[RestedXP Guides](https://www.restedxp.com) and are shared under
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), like the original.
+Regenerate them with `python scripts/import_flight_times.py <RXPGuides/DB/forever/flightData.lua>`.
 
 ## Development
 

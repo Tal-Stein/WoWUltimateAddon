@@ -17,6 +17,7 @@ end
 
 FM.MIN_KILLS = 5  -- kills of a mob before its value per kill counts
 FM.OWN_TRUST = 20 -- your own kills of a mob that outweigh ForeverDB's crowd data for it
+FM.MIN_DATA_KILLS = 5 -- ForeverDB coin averages from fewer recorded kills are left out (too noisy)
 FM.MIN_PACE = 10  -- timed kills before gold per hour is shown
 
 local function itemsValue(items, price)
@@ -52,7 +53,7 @@ function FM.DataMobValue(d, price, skills)
     end
     return total
   end
-  local coin = d.coin or 0
+  local coin = ((d.kills or 0) >= FM.MIN_DATA_KILLS) and d.coin or 0
   local loot = sum(d.drops)
   local skin = (skills and skills.skinning) and sum(d.skins) or 0
   local perKill = coin + loot + skin
@@ -135,9 +136,19 @@ end
 
 FM.GRADES = { "excellent", "good", "fair", "poor" }
 
--- Grade valued zones against the best one (list is sorted best first): within 75% of it is
--- excellent, 40% good, 15% fair, below that poor. Zones worth nothing (no prices yet) get none.
+-- Grade valued zones against the 90th-percentile one: within 75% of it is excellent, 40% good,
+-- 15% fair, below that poor. Zones worth nothing (no prices yet) get none.
 FM.THRESHOLDS = { 0.75, 0.4, 0.15 }
+
+-- The p-th fraction of a list of numbers (0.9: the value 90% of them are at or under). Ratings
+-- measure against this rather than the very best, which is often one odd, rarely seen mob.
+function FM.Percentile(values, p)
+  if #values == 0 then return nil end
+  local sorted = {}
+  for i, v in ipairs(values) do sorted[i] = v end
+  table.sort(sorted)
+  return sorted[math.max(1, math.min(#sorted, math.ceil(p * #sorted)))]
+end
 
 -- A value's grade against the best one (FM.THRESHOLDS); nil without a value or a best.
 function FM.RatioGrade(value, best)
@@ -150,10 +161,11 @@ function FM.RatioGrade(value, best)
 end
 
 function FM.Grade(list)
-  local best = 0
+  local densities = {}
   for _, z in ipairs(list) do
-    if (z.value or 0) > 0 and z.density > best then best = z.density end
+    if (z.value or 0) > 0 then densities[#densities + 1] = z.density end
   end
+  local best = FM.Percentile(densities, 0.9) or 0
   for _, z in ipairs(list) do
     z.grade = (z.value or 0) > 0 and FM.RatioGrade(z.density, best) or nil
   end

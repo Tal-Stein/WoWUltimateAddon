@@ -74,7 +74,7 @@ function KL.RecordKill(guid)
     pace.sum, pace.n = pace.sum + (now - lastKill), pace.n + 1
   end
   lastKill = now
-  ns:Fire("ULT_FARM_DATA")
+  if ns.FarmSources then ns.FarmSources.Bump() end
 end
 
 local function skinningName()
@@ -141,7 +141,7 @@ function KL.OnLoot()
       remember(looted, guid)
     end
   end
-  if next(counted) then ns:Fire("ULT_FARM_DATA") end
+  if next(counted) then if ns.FarmSources then ns.FarmSources.Bump() end end
 end
 
 local function onCombatLog()

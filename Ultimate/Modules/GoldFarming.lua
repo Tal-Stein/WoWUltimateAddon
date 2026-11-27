@@ -598,9 +598,11 @@ local function areaFrame(i)
   return a
 end
 
-function G.MobGrade(e, best, most)
-  if e.price then return FM.RatioGrade(e.price, best) or "poor" end
-  return FM.RatioGrade(e.count, most) or "poor"
+-- A mob's rating: by its gold per kill among the mobs around your level, or (no value known) by
+-- how many live here among the zone's mobs.
+function G.MobGrade(e, yard, counts)
+  if e.price then return FM.RankGrade(e.price, yard) or "fair" end
+  return FM.RankGrade(e.count, counts) or "fair"
 end
 
 -- Areas per mob on a map, worked out once (until the scores change).
@@ -615,16 +617,17 @@ G.ClearAreas = function() areaCache = {} end
 local function mobAreas(mapID)
   local z = G.byMap[mapID]
   if not z then return end
-  local most = 0
-  for _, e in ipairs(z.entries) do if e.count > most then most = e.count end end
-  local best = ns.FarmTargeting.BestKnown()
+  local counts = {}
+  for _, e in ipairs(z.entries) do counts[#counts + 1] = e.count end
+  table.sort(counts)
+  local yard = ns.FarmTargeting.Yardstick()
   local w, h = canvasSize()
   local n = 0
   -- Least valuable first, so the best mob's areas are drawn on top.
   local last = math.min(#z.entries, AREA_MOBS)
   for i = last, 1, -1 do
     local e = z.entries[i]
-    local grade = G.MobGrade(e, best, most)
+    local grade = G.MobGrade(e, yard, counts)
     local c = G.COLORS[grade]
     for _, area in ipairs(areasOf(mapID, e.npcID)) do
       n = n + 1
@@ -797,7 +800,7 @@ function G.Attach()
     pcall(api.RegisterCallback, G, "OpenMap_StitchedChanged", function() G.Refresh() end)
     pcall(api.RegisterCallback, G, "OpenMap_ViewChanged", function() if G.overlay then G.LiftOverOpenMap() end end)
   end
-  WorldMapFrame:HookScript("OnShow", function() G.Invalidate(); G.Refresh() end)
+  WorldMapFrame:HookScript("OnShow", function() G.Refresh() end) -- data changes invalidate, not opening
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
   G.Refresh()
 end
@@ -916,9 +919,9 @@ G.def = ns.Modules:Register({
     installTooltip()
     if not pricesHooked then
       pricesHooked = true
-      FS.OnPricesChanged(function() G.Invalidate(); G.Refresh() end)
+      FS.Watch()
     end
-    ns:On("SKILL_LINES_CHANGED", G, function() G.Invalidate(); G.Refresh() end)
+    ns:On("SKILL_LINES_CHANGED", G, function() FS.Bump() end)
     ns:On("ULT_FARM_DATA", G, function()
       G.Invalidate()
       if G.attached and WorldMapFrame:IsShown() then G.Refresh() end

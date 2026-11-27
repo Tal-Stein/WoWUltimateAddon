@@ -122,9 +122,11 @@ describe("Gold farming on the world map", function()
   it("drops nodes above your skill", function()
     skillRank = 60
     __fire("SKILL_LINES_CHANGED")
+    __advance(3, true)
     assertEq(#shownPins(), 0)
     skillRank = 75
     __fire("SKILL_LINES_CHANGED")
+    __advance(3, true)
   end)
   it("doesn't work the scores out again just for browsing the map", function()
     local calls = 0
@@ -133,7 +135,9 @@ describe("Gold farming on the world map", function()
     open(1415); open(1436); open(1415)
     assertEq(calls, 0)
     WorldMapFrame:GetScript("OnShow")()
-    assertEq(calls, 1, "opening the map does")
+    assertEq(calls, 0, "nor opening it: nothing changed")
+    FS.Bump(true)
+    assertEq(calls, 1, "a data change does")
     FS.Zones = zones
   end)
 end)
@@ -175,6 +179,7 @@ describe("Gold farming updates", function()
   it("regrades when Auctionator finishes a scan", function()
     PRICES[2447] = 1000
     Auctionator.__update()
+    __advance(3, true)
     open(1415)
     local byTex = {}
     for _, t in ipairs(shownHighlights()) do byTex[t.texture] = t end
@@ -391,7 +396,7 @@ describe("Mobs lens", function()
     end
     assertEq(shown, 2, "one area per group of nearby spawns")
     assertEq(grades[116], "excellent", "the mob you farm best")
-    assertEq(grades[117], "fair", "not farmed: 12 of the zone's 40")
+    assertEq(grades[117], "fair", "no value: ranked by how many live here")
   end)
   it("shows a mob's level, numbers and rating when hovering its area", function()
     local b

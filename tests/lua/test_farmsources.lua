@@ -235,6 +235,52 @@ describe("ForeverDB", function()
   end)
 end)
 
+describe("Caching", function()
+  it("keeps vendor prices for good once read, and asks for items it hasn't seen", function()
+    local requested = {}
+    C_Item.RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end
+    local itemInfo = C_Item.GetItemInfo
+    assertNil((FS.Price(4242)))
+    assertEq(requested, { 4242 })
+    C_Item.GetItemInfo = function(id)
+      if id == 4242 then return "Thing", nil, 1, 1, 1, "", "", 1, "", 0, 30 end
+      return itemInfo(id)
+    end
+    local gen = FS.generation
+    __fire("GET_ITEM_INFO_RECEIVED", 4242, true)
+    __advance(3, true)
+    assertTrue(FS.generation > gen, "the data is bumped once it arrives")
+    assertEq((FS.Price(4242)), 30)
+    assertEq(UltimateDB.farmSellPrices[4242], 30)
+    C_Item.GetItemInfo = itemInfo
+    FS.Bump(true)
+    assertEq((FS.Price(4242)), 30, "from the kept price, without the item cache")
+  end)
+  it("works a mob's value out once until the data changes", function()
+    local calls = 0
+    local price = FS.Price
+    local oldMV = ns.Farming.DataMobValue
+    ns.Farming.DataMobValue = function(...) calls = calls + 1; return oldMV(...) end
+    FS.Bump(true)
+    FS.MobValue(116); FS.MobValue(116); FS.MobValue(116)
+    assertEq(calls, 1)
+    FS.Bump(true)
+    FS.MobValue(116)
+    assertEq(calls, 2)
+    ns.Farming.DataMobValue = oldMV
+  end)
+  it("doesn't reload a newer ForeverDB within a week of reading one", function()
+    local loads = foreverLoads
+    versions.ForeverDB = "2026-11-28"
+    FS.Forever()
+    assertEq(foreverLoads, loads)
+    __time = __time + 8 * 86400
+    FS.Forever()
+    assertEq(foreverLoads, loads + 1, "a week on, it is")
+    __advance(1, true)
+  end)
+end)
+
 describe("Prices", function()
   it("uses your Auctionator scan, with its age", function()
     local p, source, age = FS.Price(2447)

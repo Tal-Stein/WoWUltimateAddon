@@ -150,6 +150,26 @@ function FM.Percentile(values, p)
   return sorted[math.max(1, math.min(#sorted, math.ceil(p * #sorted)))]
 end
 
+-- A value's grade by where it ranks among others (sorted ascending): the top quarter excellent,
+-- then good, fair, and the bottom quarter poor. Stays meaningful however wide prices spread
+-- (a rare valuable drop makes a few mobs worth many times the rest). nil without others.
+FM.RANK_STEPS = { 0.75, 0.5, 0.25 }
+function FM.RankGrade(value, sorted)
+  local n = sorted and #sorted or 0
+  if n == 0 or not value then return nil end
+  local lo, hi = 1, n -- how many are at or under value (binary search)
+  if value < sorted[1] then return FM.GRADES[4] end
+  while lo < hi do
+    local mid = math.floor((lo + hi + 1) / 2)
+    if sorted[mid] <= value then lo = mid else hi = mid - 1 end
+  end
+  local frac = lo / n
+  for i, t in ipairs(FM.RANK_STEPS) do
+    if frac > t or (i == 1 and frac >= 1) then return FM.GRADES[i] end
+  end
+  return FM.GRADES[4]
+end
+
 -- A value's grade against the best one (FM.THRESHOLDS); nil without a value or a best.
 function FM.RatioGrade(value, best)
   if not value or value <= 0 or not best or best <= 0 then return nil end

@@ -664,8 +664,20 @@ local function clear()
   for _, b in ipairs(G.blobs) do b:Hide() end
 end
 
+-- OpenMap draws its stitched world over the map canvas, up to OpenMapAPI.ArtTopLevel(); frames
+-- under that level don't show. Keep our two layers above it (a frame level on the map can't change
+-- in combat: done on the next refresh then).
+function G.LiftOverOpenMap()
+  local api = _G.OpenMapAPI
+  local top = type(api) == "table" and type(api.ArtTopLevel) == "function" and ns.Safe.read(api.ArtTopLevel)
+  if type(top) ~= "number" or ns.Safe.read(InCombatLockdown) then return end
+  if (G.overlay:GetFrameLevel() or 0) <= top then G.overlay:SetFrameLevel(top + 1) end
+  if (G.pinLayer:GetFrameLevel() or 0) <= top + 1 then G.pinLayer:SetFrameLevel(top + 2) end
+end
+
 function G.Refresh()
   if not G.attached then return end
+  G.LiftOverOpenMap()
   clear()
   G.hover = nil
   G.UpdateButton()
@@ -735,6 +747,11 @@ function G.Attach()
   G.panel = buildPanel(WorldMapFrame.ScrollContainer or WorldMapFrame)
   G.button = G.BuildButton(WorldMapFrame.ScrollContainer or WorldMapFrame)
   hooksecurefunc(WorldMapFrame, "OnMapChanged", function() G.Refresh() end)
+  local api = _G.OpenMapAPI
+  if type(api) == "table" and type(api.RegisterCallback) == "function" then
+    pcall(api.RegisterCallback, G, "OpenMap_StitchedChanged", function() G.Refresh() end)
+    pcall(api.RegisterCallback, G, "OpenMap_ViewChanged", function() if G.overlay then G.LiftOverOpenMap() end end)
+  end
   WorldMapFrame:HookScript("OnShow", function() G.Invalidate(); G.Refresh() end)
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
   G.Refresh()

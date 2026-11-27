@@ -413,3 +413,18 @@ describe("Mobs lens", function()
     ns.Menu.Set("farming.lens", "mobs")
   end)
 end)
+
+describe("With OpenMap", function()
+  it("keeps the shading and spots above OpenMap's stitched art", function()
+    OpenMapAPI = { ArtTopLevel = function() return 3000 end }
+    for _, f in ipairs({ G.overlay, G.pinLayer }) do
+      f.level = 5
+      f.SetFrameLevel = function(self, l) self.level = l end
+      f.GetFrameLevel = function(self) return self.level end
+    end
+    G.Refresh()
+    assertEq(G.overlay.level, 3001)
+    assertEq(G.pinLayer.level, 3002)
+    OpenMapAPI = nil
+  end)
+end)

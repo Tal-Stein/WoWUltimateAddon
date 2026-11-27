@@ -150,6 +150,52 @@ function FS.Spawns(mapID)
 end
 
 ------------------------------------------------------------------------------
+-- Mobs (your own kills, Services/KillLog.lua, placed with Questie's NPC spawns)
+------------------------------------------------------------------------------
+local ABOVE_LEVEL = 3 -- mobs further above you than this aren't farming
+local mobSpawns = {}  -- [npcID] = { [uiMapID] = spawns }, per session
+
+local function npc(id, field)
+  local lib = LibQuestieDB
+  if type(lib) ~= "table" or type(lib.Npc) ~= "table" then return nil end
+  return ns.Safe.read(lib.Npc.Get, id, field)
+end
+
+local function spawnsByMap(npcID)
+  if mobSpawns[npcID] then return mobSpawns[npcID] end
+  local zones, byMap = zoneDB(), {}
+  local spawns = npc(npcID, "spawns")
+  for area, points in pairs(type(spawns) == "table" and spawns or {}) do
+    local mapID = zones and ns.Safe.read(zones.GetUiMapIdByAreaId, zones, area)
+    if mapID and mapID > 0 then byMap[mapID] = (byMap[mapID] or 0) + #points end
+  end
+  mobSpawns[npcID] = byMap
+  return byMap
+end
+
+-- For FM.ScoreZones: { zones = { [uiMapID] = { [npcID] = spawns } }, values = { [npcID] = value },
+-- names = { [npcID] = name } } for the mobs you've killed that suit you (not elite or rare, not
+-- more than ABOVE_LEVEL above your level).
+function FS.Mobs(skills)
+  local mobs = { zones = {}, values = {}, names = {} }
+  local level = ns.Safe.read(UnitLevel, "player") or 1
+  for npcID, stat in pairs(ns.KillLog.Stats()) do
+    local rank = npc(npcID, "rank") or 0
+    local minLevel = npc(npcID, "minLevel") or 0
+    local value = rank == 0 and minLevel <= level + ABOVE_LEVEL and ns.Farming.MobValue(stat, FS.Price, skills)
+    if value then
+      mobs.values[npcID] = value
+      mobs.names[npcID] = npc(npcID, "name")
+      for mapID, n in pairs(spawnsByMap(npcID)) do
+        mobs.zones[mapID] = mobs.zones[mapID] or {}
+        mobs.zones[mapID][npcID] = n
+      end
+    end
+  end
+  return mobs
+end
+
+------------------------------------------------------------------------------
 -- Prices
 ------------------------------------------------------------------------------
 local function auctionator()

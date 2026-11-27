@@ -36,6 +36,9 @@ Auctionator = { API = { v1 = {
   GetAuctionAgeByItemID = function() return 1 end,
   RegisterForDBUpdate = function(_, fn) Auctionator.__update = fn end,
 } } }
+local tooltipPost
+Enum.TooltipDataType = { Unit = 2 }
+TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) if kind == 2 then tooltipPost = fn end end }
 local menuMods = {}
 Menu = { ModifyMenu = function(tag, fn) menuMods[tag] = fn end }
 
@@ -51,6 +54,9 @@ FS.Spawns = function(mapID)
   end
   return {}
 end
+
+local MOBS = { zones = {}, values = {}, names = {} }
+FS.Mobs = function() return MOBS end
 
 local canvas = CreateFrame("Frame")
 function canvas:GetWidth() return 1000 end
@@ -162,5 +168,32 @@ describe("Gold farming updates", function()
     local byTex = {}
     for _, t in ipairs(shownHighlights()) do byTex[t.texture] = t end
     assertEq(byTex[2429].vertexColor, G.COLORS.excellent)
+  end)
+end)
+
+describe("Gold farming with your kills", function()
+  it("lists a mob you've farmed with its gold per kill and per hour", function()
+    MOBS.zones[1436] = { [116] = 30 }
+    MOBS.values[116] = { perKill = 50, kills = 12 }
+    MOBS.names[116] = "Defias Bandit"
+    UltimateCharDB.farmPace = { sum = 300, n = 10 }
+    open(1436)
+    local text = panelText()
+    assertTrue(text:find("Defias Bandit", 1, true) ~= nil, text)
+    assertTrue(text:find("50c per kill", 1, true) ~= nil, text)
+    assertTrue(text:find("12 kills", 1, true) ~= nil, text)
+    assertTrue(text:find("60s 0c/hr", 1, true) ~= nil, text)
+  end)
+  it("adds the mob's value to its tooltip", function()
+    UltimateDB.farmMobs = { [116] = { kills = 12, copper = 600, items = {}, skins = {}, maps = {} } }
+    local lines = {}
+    local tip = { AddLine = function(_, text) lines[#lines + 1] = text end }
+    tooltipPost(tip, { guid = "Creature-0-1-0-12-116-00AB" })
+    assertTrue(lines[1] and lines[1]:find("50c per kill", 1, true) ~= nil, tostring(lines[1]))
+  end)
+  it("adds nothing for a mob you haven't killed enough", function()
+    local lines = {}
+    tooltipPost({ AddLine = function(_, t) lines[#lines + 1] = t end }, { guid = "Creature-0-1-0-12-999-00AB" })
+    assertEq(#lines, 0)
   end)
 end)

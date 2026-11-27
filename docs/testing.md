@@ -119,6 +119,11 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Without a gathering profession the panel says to learn one, and nothing is tinted.
 - [ ] Right-click the panel: Hide gold farming, Settings.
 - [ ] /ult > Features > Gold Farming shows which data sources it's reading.
+- [ ] Kill and loot a mob five times: its tooltip shows "<coin> per kill (5 kills)", and after ten
+      kills in a row also "<coin>/hr". Area loot of several corpses counts each one.
+- [ ] Skinning a corpse doesn't count as another kill; with Skinning, its value includes skins.
+- [ ] Its zone's panel lists the mob with gold per kill; zones you farm grade higher.
+- [ ] Pick-pocketing doesn't count as a kill. Turning "Record what my kills drop" off stops it.
 
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest

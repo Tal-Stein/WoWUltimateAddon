@@ -15,21 +15,65 @@ function FM.CanGather(node, skills)
   return rank >= node.skill and "yes" or "skill"
 end
 
+FM.MIN_KILLS = 5  -- kills of a mob before its value per kill counts
+FM.MIN_PACE = 10  -- timed kills before gold per hour is shown
+
+local function itemsValue(items, price)
+  local total = 0
+  for id, qty in pairs(items or {}) do
+    local p = price(id)
+    if p then total = total + p * qty end
+  end
+  return total
+end
+
+-- What one kill of a mob is worth, from your own kills of it (stat: { kills, copper,
+-- items = { [itemID] = qty }, skins = { [itemID] = qty } }): { perKill, coin, loot, skin, kills }
+-- in copper per kill, or nil with no kills. Skinning counts only for skinners.
+function FM.MobValue(stat, price, skills)
+  local kills = stat and stat.kills or 0
+  if kills <= 0 then return nil end
+  local coin = (stat.copper or 0) / kills
+  local loot = itemsValue(stat.items, price) / kills
+  local skin = (skills and skills.skinning) and itemsValue(stat.skins, price) / kills or 0
+  return { perKill = coin + loot + skin, coin = coin, loot = loot, skin = skin, kills = kills }
+end
+
+-- Copper per hour at your own pace (pace: { sum = seconds between kills, n = timed kills }).
+function FM.PerHour(perKill, pace)
+  if not perKill or not pace or (pace.n or 0) < FM.MIN_PACE or (pace.sum or 0) <= 0 then return nil end
+  return perKill * 3600 / (pace.sum / pace.n)
+end
+
 -- zones: { [uiMapID] = { [node name] = spawn count } }, nodes: Data/GatherNodes, skills:
 -- { herbalism = rank, ... }, price(itemID) -> copper, source ("auction"/"vendor"), age (days),
--- area(uiMapID) -> size (optional). Returns the zones you can gather in, most valuable first:
--- { mapID, value, density, entries = { { name, count, itemID, price, source, age, skill, status } } }
-function FM.ScoreZones(zones, nodes, skills, price, area)
+-- area(uiMapID) -> size (optional), mobs (optional): { zones = { [uiMapID] = { [npcID] = spawns } },
+-- values = { [npcID] = FM.MobValue(...) }, names = { [npcID] = name } }. Returns the zones with
+-- something for you, most valuable first: { mapID, value, density, entries = { { kind ("node" or
+-- "mob"), name, count, price (per node or per kill), ... } } }
+function FM.ScoreZones(zones, nodes, skills, price, area, mobs)
   local list = {}
-  for mapID, counts in pairs(zones) do
+  local all = {}
+  for mapID in pairs(zones) do all[mapID] = true end
+  for mapID in pairs(mobs and mobs.zones or {}) do all[mapID] = true end
+  for mapID in pairs(all) do
+    local counts = zones[mapID] or {}
     local entries, value = {}, 0
+    for npcID, spawns in pairs(mobs and mobs.zones[mapID] or {}) do
+      local v = mobs.values[npcID]
+      if v and v.kills >= FM.MIN_KILLS and v.perKill > 0 then
+        entries[#entries + 1] = { kind = "mob", npcID = npcID, name = mobs.names[npcID] or tostring(npcID),
+          count = spawns, price = v.perKill, kills = v.kills, value = v, status = "yes" }
+        value = value + spawns * v.perKill
+      end
+    end
     for name, count in pairs(counts) do
       local node = nodes[name]
       local status = FM.CanGather(node, skills)
       if status == "yes" or status == "unknown" then
         local p, source, age
         if node.item then p, source, age = price(node.item) end
-        entries[#entries + 1] = { name = name, count = count, itemID = node.item, price = p,
+        entries[#entries + 1] = { kind = "node", name = name, count = count, itemID = node.item, price = p,
           source = source, age = age, skill = node.skill, status = status, prof = node.prof }
         if p then value = value + p * count end
       end

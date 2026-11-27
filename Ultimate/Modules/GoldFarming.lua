@@ -69,7 +69,8 @@ end
 ------------------------------------------------------------------------------
 function G.Score()
   G.skills = FS.Skills()
-  G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area)
+  G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
+    o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
   G.byMap = {}
   for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
 end
@@ -79,13 +80,23 @@ end
 ------------------------------------------------------------------------------
 local function profLine()
   local parts = {}
-  for _, prof in ipairs({ "herbalism", "mining" }) do
+  for _, prof in ipairs({ "herbalism", "mining", "skinning" }) do
     if G.skills[prof] then parts[#parts + 1] = L["PROF_" .. prof] .. " " .. G.skills[prof] end
   end
   return table.concat(parts, "  ·  ")
 end
 
+-- "50c per kill · 1g/hr (12 kills)"
+local function mobValueText(perKill, kills)
+  local text = string.format(L.FARM_PER_KILL, money(perKill))
+  local hour = FM.PerHour(perKill, ns.KillLog.Pace())
+  if hour then text = text .. "  ·  " .. string.format(L.FARM_PER_HOUR, money(hour)) end
+  return text .. "  |cff808080(" .. string.format(L.FARM_KILLS, kills) .. ")|r"
+end
+G.MobValueText = mobValueText
+
 local function entryLine(e)
+  if e.kind == "mob" then return e.name .. "  " .. mobValueText(e.price, e.kills) end
   local text = string.format(L.FARM_NODE_COUNT, e.count, e.name)
   if e.status == "unknown" then
     text = text .. "  |cff808080(" .. L.FARM_SKILL_UNKNOWN .. ")|r"
@@ -106,7 +117,7 @@ end
 local function panelLines()
   local lines = {}
   local zoneID = (G.mapType == mapTypes().Zone) and G.mapID or G.hover
-  if next(G.skills) == nil then
+  if next(G.skills) == nil and #G.scores == 0 then
     lines[1] = L.MODULE_FARMING
     lines[2] = L.FARM_NO_PROFESSION
   elseif zoneID then
@@ -396,14 +407,39 @@ local function installMapMenu()
   end)
 end
 
+-- A mob's tooltip: what killing it has been worth to you.
+local function onUnitTooltip(tooltip, data)
+  if not ns.Modules:IsActive("farming") or o().unitTooltip == false then return end
+  if type(tooltip) ~= "table" or type(tooltip.AddLine) ~= "function" then return end
+  local guid = data and data.guid
+  if ns.Safe.isSecret(guid) then return end
+  local npcID = ns.Units.npcIdFromGuid(guid)
+  local stat = npcID and ns.KillLog.Stats()[npcID]
+  local v = stat and FM.MobValue(stat, FS.Price, FS.Skills())
+  if not v or v.kills < FM.MIN_KILLS or v.perKill <= 0 then return end
+  tooltip:AddLine(mobValueText(v.perKill, v.kills), 1, 0.82, 0)
+end
+
+local tooltipHooked = false
+local function installTooltip()
+  if tooltipHooked then return end
+  local tdp = TooltipDataProcessor
+  local kind = Enum and Enum.TooltipDataType and Enum.TooltipDataType.Unit
+  if type(tdp) ~= "table" or type(tdp.AddTooltipPostCall) ~= "function" or not kind then return end
+  tooltipHooked = true
+  tdp.AddTooltipPostCall(kind, onUnitTooltip)
+end
+
 local pricesHooked = false
 G.def = ns.Modules:Register({
   key = "farming",
   name = L.MODULE_FARMING,
   description = L.MODULE_FARMING_DESC,
-  defaults = { showOnMap = true, showPins = true },
+  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true },
   OnEnable = function()
+    ns.KillLog.Start()
     installMapMenu()
+    installTooltip()
     if not pricesHooked then
       pricesHooked = true
       FS.OnPricesChanged(function() G.Refresh() end)
@@ -417,6 +453,7 @@ G.def = ns.Modules:Register({
     G.Refresh()
   end,
   OnDisable = function()
+    ns.KillLog.Stop()
     ns:OffAll(G)
     G.Refresh()
   end,
@@ -431,4 +468,7 @@ function G.def.BuildSettings(ctx)
   ctx:Header(string.format(L.FARM_SOURCES, table.concat(parts, ", ")))
   ctx:Checkbox("farming.showOnMap", L.FARM_SHOW_MAP, L.FARM_SHOW_MAP_TIP)
   ctx:Checkbox("farming.showPins", L.FARM_SHOW_PINS, L.FARM_SHOW_PINS_TIP)
+  ctx:Checkbox("farming.recordKills", L.FARM_RECORD, L.FARM_RECORD_TIP)
+  ctx:Checkbox("farming.includeMobs", L.FARM_INCLUDE_MOBS, L.FARM_INCLUDE_MOBS_TIP)
+  ctx:Checkbox("farming.unitTooltip", L.FARM_UNIT_TOOLTIP, L.FARM_UNIT_TOOLTIP_TIP)
 end

@@ -49,6 +49,7 @@ Services\Sounds.lua
 Services\Alerts.lua
 Services\MinimapButton.lua
 Services\FarmSources.lua
+Services\KillLog.lua
 Modules\QuestTargeting.lua
 Modules\QuestGrades.lua
 Services\GradeSurfaces.lua

@@ -82,8 +82,12 @@ end
 -- Questie's name lookup (IdsByName) builds an index over every object the first time; done in one
 -- go that can stall the game ("script ran too long"). Start it in small batches early instead.
 function FS.Prepare()
+  FS.Watch()
   local objects = questieObjects()
-  if objects and type(objects.BuildNameIndexAsync) == "function" then pcall(objects.BuildNameIndexAsync) end
+  local cached = ns.global and ns.global.farmNodes and ns.global.farmNodes.key == FS.SourceKey()
+  if not cached and objects and type(objects.BuildNameIndexAsync) == "function" then
+    pcall(objects.BuildNameIndexAsync) -- only needed to count Questie's nodes again
+  end
   -- Start reading which mobs live where once Questie has settled in.
   if C_Timer then
     C_Timer.After(10, function() FS.MobIndex() end)
@@ -150,11 +154,15 @@ local function total(zones)
   return n
 end
 
+local gmCache = { gen = -1 }
 function FS.Zones()
   local base = questieCounts()
   local gm = gatherMate()
   if gm then
-    local zones = gatherMateZones(gm)
+    if gmCache.gen ~= FS.generation or gmCache.gm ~= gm then
+      gmCache = { gen = FS.generation, gm = gm, zones = gatherMateZones(gm) }
+    end
+    local zones = gmCache.zones
     if total(zones) > total(base) then FS.source = "gathermate"; return zones, FS.source end
   end
   FS.source = next(base) and "questie" or "none"
@@ -373,16 +381,32 @@ end
 local MIN_CHANCE = 20     -- drops rarer than 0.2% (chances per 10000) aren't worth carrying
 local CONVERT_BATCH = 2000
 local forever, foreverBuilding
-FS.generation = 0         -- goes up when farming data changes (ForeverDB read, prices)
+FS.generation = 0         -- goes up when farming data changes (ForeverDB, prices, items, kills)
+local FOREVER_MAX_AGE = 7 * 86400 -- ForeverDB updates daily; re-read it at most weekly (it's ~90 MB)
+local BUMP_DELAY = 2      -- seconds: many changes in a row (items arriving, kills) bump once
+
+-- Everything worked out from the data (prices, values, ratings) is kept until this goes up.
+local bumpQueued
+function FS.Bump(now)
+  local function bump()
+    bumpQueued = false
+    FS.generation = FS.generation + 1
+    ns:Fire("ULT_FARM_DATA")
+  end
+  if now then bump(); return end
+  if bumpQueued then return end
+  bumpQueued = true
+  C_Timer.After(BUMP_DELAY, bump)
+end
 
 function FS.ForeverVersion() return meta("ForeverDB", "Version") end
 
 local function foreverDone(data)
   foreverBuilding = false
+  data.builtAt = time()
   if ns.global then ns.global.farmForeverDB = data end
   forever = data
-  FS.generation = FS.generation + 1
-  ns:Fire("ULT_FARM_DATA")
+  FS.Bump(true)
 end
 
 local function convertForever(version)
@@ -429,6 +453,8 @@ function FS.Forever()
   if forever and forever.version == version then return forever end
   local cache = ns.global and ns.global.farmForeverDB
   if cache and cache.version == version then forever = cache; return forever end
+  -- A newer ForeverDB: keep the copy we have until it's a week old (loading it is the cost).
+  if cache and cache.builtAt and time() - cache.builtAt < FOREVER_MAX_AGE then forever = cache; return forever end
   if not foreverBuilding and not ns.Safe.read(InCombatLockdown) then
     local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
     if load then
@@ -455,12 +481,19 @@ end
 
 -- What one kill of a mob is worth to you: your own kills (Services/KillLog.lua) or ForeverDB,
 -- whichever FM.PickValue trusts; nil when neither knows.
+-- Worked out once per mob until the data changes (FS.generation).
+local valueCache = { gen = -1 }
 function FS.MobValue(npcID, skills)
+  if valueCache.gen ~= FS.generation then valueCache = { gen = FS.generation } end
+  local hit = valueCache[npcID]
+  if hit ~= nil then return hit or nil end
   skills = skills or FS.Skills()
   local stat = ns.KillLog.Stats()[npcID]
   local own = stat and ns.Farming.MobValue(stat, FS.Price, skills)
   local data = ns.Farming.DataMobValue(foreverEntry(npcID), FS.Price, skills)
-  return ns.Farming.PickValue(own, data)
+  local v = ns.Farming.PickValue(own, data)
+  valueCache[npcID] = v or false
+  return v
 end
 
 -- A mob's most valuable drops: { { itemID, chance (0-1), value (copper per kill) } }, best first.
@@ -485,28 +518,74 @@ local function auctionator()
   return type(api) == "table" and api or nil
 end
 
--- copper, "auction"/"vendor", age in days (auction only); nil when nothing is known.
-function FS.Price(itemID)
-  local api = auctionator()
-  if api and api.GetAuctionPriceByItemID then
-    local p = ns.Safe.read(api.GetAuctionPriceByItemID, CALLER, itemID)
-    if type(p) == "number" and p > 0 then
-      local age = api.GetAuctionAgeByItemID and ns.Safe.read(api.GetAuctionAgeByItemID, CALLER, itemID)
-      return p, "auction", age
-    end
-  end
+-- Vendor prices never change: once read they're kept in UltimateDB.farmSellPrices, so the next
+-- session needn't wait for the game's item cache. Items it hasn't seen yet are asked for; when they
+-- arrive, the data is bumped once (BUMP_DELAY) and the ratings follow.
+local pending = {}
+local function sellPrice(itemID)
+  local g = ns.global
+  local known = g and g.farmSellPrices and g.farmSellPrices[itemID]
+  if known then return known > 0 and known or nil end
   local info = C_Item and C_Item.GetItemInfo or GetItemInfo
   if info then
-    local ok, sell = pcall(function() return (select(11, info(itemID))) end)
-    if ok and type(sell) == "number" and sell > 0 and not ns.Safe.isSecret(sell) then return sell, "vendor" end
+    local ok, name, _, _, _, _, _, _, _, _, _, sell = pcall(info, itemID)
+    if ok and name and type(sell) == "number" and not ns.Safe.isSecret(sell) then
+      if g then g.farmSellPrices = g.farmSellPrices or {}; g.farmSellPrices[itemID] = sell end
+      return sell > 0 and sell or nil
+    end
+  end
+  if not pending[itemID] and C_Item and C_Item.RequestLoadItemDataByID then
+    pending[itemID] = true
+    pcall(C_Item.RequestLoadItemDataByID, itemID)
   end
   return nil
+end
+
+function FS.OnItemInfo(itemID)
+  if not pending[itemID] then return end
+  pending[itemID] = nil
+  if sellPrice(itemID) then FS.Bump() end
+end
+
+-- copper, "auction"/"vendor", age in days (auction only); nil when nothing is known. Kept until
+-- the data changes (an Auctionator scan bumps it).
+local priceCache = { gen = -1 }
+function FS.Price(itemID)
+  if priceCache.gen ~= FS.generation then priceCache = { gen = FS.generation } end
+  local hit = priceCache[itemID]
+  if hit ~= nil then
+    if hit then return hit[1], hit[2], hit[3] end
+    return nil
+  end
+  local p, source, age
+  local api = auctionator()
+  if api and api.GetAuctionPriceByItemID then
+    local a = ns.Safe.read(api.GetAuctionPriceByItemID, CALLER, itemID)
+    if type(a) == "number" and a > 0 then
+      p, source = a, "auction"
+      age = api.GetAuctionAgeByItemID and ns.Safe.read(api.GetAuctionAgeByItemID, CALLER, itemID)
+    end
+  end
+  if not p then
+    p = sellPrice(itemID)
+    source = p and "vendor" or nil
+  end
+  priceCache[itemID] = p and { p, source, age } or false
+  return p, source, age
 end
 
 -- Calls fn when Auctionator finishes a scan (its prices changed).
 function FS.OnPricesChanged(fn)
   local api = auctionator()
   if api and api.RegisterForDBUpdate then pcall(api.RegisterForDBUpdate, CALLER, fn) end
+end
+
+local watching = false
+function FS.Watch()
+  if watching then return end
+  watching = true
+  ns:On("GET_ITEM_INFO_RECEIVED", FS, function(_, itemID) FS.OnItemInfo(itemID) end)
+  FS.OnPricesChanged(function() FS.Bump() end)
 end
 
 function FS.Status()

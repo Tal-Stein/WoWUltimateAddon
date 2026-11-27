@@ -24,15 +24,15 @@ function FT.Value(npcID)
   if FM.Trusted(v) then return v end
 end
 
--- The yardstick for ratings: the 90th-percentile gold per kill among mobs around your level
--- (ForeverDB and your own kills; not the very best, which is often one odd mob seen once), worked
--- out once per level and data change.
+-- The yardstick for ratings: the gold per kill of every mob around your level (ForeverDB and your
+-- own kills), sorted, so a mob is rated by where it ranks among them (FM.RankGrade). Worked out
+-- once per level and data change.
 local bestCache = {}
 function FT.Reset() bestCache = {} end
-function FT.BestKnown()
+function FT.Yardstick()
   local level = ns.Safe.read(UnitLevel, "player") or 1
   local key = level .. ":" .. ns.FarmSources.generation
-  if bestCache.key == key then return bestCache.best end
+  if bestCache.key == key then return bestCache.sorted end
   local values, seen = {}, {}
   local skills = ns.FarmSources.Skills()
   local consider = function(npcID)
@@ -46,8 +46,9 @@ function FT.BestKnown()
     if l[1] <= level + FM.MOB_ABOVE and l[2] >= level - FM.MOB_BELOW then consider(npcID) end
   end
   for npcID in pairs(ns.KillLog.Stats()) do consider(npcID) end
-  bestCache = { key = key, best = FM.Percentile(values, 0.9) }
-  return bestCache.best
+  table.sort(values)
+  bestCache = { key = key, sorted = values }
+  return values
 end
 
 -- "31s", "1g 20s", "45c": the bar's short gold.
@@ -70,7 +71,7 @@ end
 function FT.TooltipLine(npcID)
   local v = FT.Value(npcID)
   if not v then return L.FARM_TIP_UNRATED, 0.6, 0.6, 0.6 end
-  local grade = FM.RatioGrade(v.perKill, FT.BestKnown())
+  local grade = FM.RankGrade(v.perKill, FT.Yardstick()) or "fair"
   local c = ns.GoldFarming.COLORS[grade]
   return string.format(L.FARM_TIP_RATED, L["FARM_GRADE_" .. grade], ns.GoldFarming.MobValueText(v)),
     c[1], c[2], c[3]
@@ -89,7 +90,7 @@ end
 function FT.Candidates(mobs)
   local level = ns.Safe.read(UnitLevel, "player") or 1
   local exclude = ns.db.questTargeting and ns.db.questTargeting.filters.exclude or {}
-  local best = FT.BestKnown()
+  local yard = FT.Yardstick()
   local list = {}
   for _, mob in ipairs(mobs) do
     if FT.Farmable(mob, level) and not exclude[mob.name] then
@@ -98,7 +99,7 @@ function FT.Candidates(mobs)
       list[#list + 1] = {
         name = mob.name, level = mob.level, healthPct = mob.healthPct, count = 1, mobs = { mob },
         kind = "farm", gold = v and v.perKill or nil,
-        goldGrade = v and FM.RatioGrade(v.perKill, best) or nil,
+        goldGrade = v and FM.RankGrade(v.perKill, yard) or nil,
         tooltip = function(tt)
           local text, r, g, b = FT.TooltipLine(npcID)
           tt:AddLine(text, r, g, b)

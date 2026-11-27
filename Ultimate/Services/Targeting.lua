@@ -103,6 +103,7 @@ local function mergeInto(base, c)
   for _, m in ipairs(c.mobs or {}) do base.mobs[#base.mobs + 1] = m end
   if c.tooltip then base.tooltips[#base.tooltips + 1] = c.tooltip end
   if c.kind == "rare" then base.kind = "rare" end
+  if c.gold and (not base.gold or c.gold > base.gold) then base.gold, base.goldGrade = c.gold, c.goldGrade end
 end
 
 -- Collect, merge and rank candidates. `force` arms the macro even when auto-arm is off.
@@ -135,7 +136,8 @@ function T:Refresh(force)
   for name in pairs(self.firstSeen) do if not seen[name] then self.firstSeen[name] = nil end end
 
   local o = opts()
-  self.ranked = ns.Ranking.rank(list, { rareFirst = o.rareFirst, criteria = o.ranking })
+  local criteria = ns.FarmTargeting and ns.FarmTargeting.Criteria(o.ranking) or o.ranking
+  self.ranked = ns.Ranking.rank(list, { rareFirst = o.rareFirst, criteria = criteria })
   self.byName = byName
   self.cursor:set(self.ranked)
   -- With auto-arm off the key still never keeps targeting a name that is no longer a candidate.

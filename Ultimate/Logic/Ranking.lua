@@ -35,6 +35,7 @@ local comparers = {
   remaining = function(a, b, crit) return numeric(a.remaining, b.remaining, crit.desc) end,
   health = function(a, b, crit) return numeric(a.healthPct, b.healthPct, crit.desc) end,
   count = function(a, b, crit) return numeric(a.count, b.count, crit.desc) end,
+  gold = function(a, b, crit) return numeric(a.gold, b.gold, crit.desc ~= false) end, -- farming mode
 }
 
 function Ranking.rank(candidates, opts)

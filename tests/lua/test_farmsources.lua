@@ -189,6 +189,14 @@ describe("Which mobs live where", function()
   end)
 end)
 
+describe("Where a mob spawns", function()
+  it("gives its points on a map, skipping Questie's unplaced ones", function()
+    NPCS[116].spawns[40][3] = { -1, -1 }
+    assertEq(FS.MobPoints(1436, 116), { { x = 0.01, y = 0.01 }, { x = 0.02, y = 0.02 } })
+    NPCS[116].spawns[40][3] = nil
+  end)
+end)
+
 describe("Prices", function()
   it("uses your Auctionator scan, with its age", function()
     local p, source, age = FS.Price(2447)

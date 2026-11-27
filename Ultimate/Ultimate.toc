@@ -51,6 +51,7 @@ Services\Alerts.lua
 Services\MinimapButton.lua
 Services\FarmSources.lua
 Services\KillLog.lua
+Services\FarmTargeting.lua
 Modules\QuestTargeting.lua
 Modules\QuestGrades.lua
 Services\GradeSurfaces.lua

@@ -334,6 +334,20 @@ end
 
 function FS.NpcName(npcID) return npc(npcID, "name") end
 
+-- Where one mob spawns on a map: { { x, y } } in 0-1 (Questie's spawns for the map's area).
+function FS.MobPoints(mapID, npcID)
+  local zones = zoneDB()
+  local area = zones and ns.Safe.read(zones.GetAreaIdByUiMapId, zones, mapID)
+  local spawns = area and npc(npcID, "spawns")
+  local list = {}
+  for _, p in ipairs(type(spawns) == "table" and spawns[area] or {}) do
+    if type(p[1]) == "number" and type(p[2]) == "number" and p[1] >= 0 and p[2] >= 0 then
+      list[#list + 1] = { x = p[1] / 100, y = p[2] / 100 }
+    end
+  end
+  return list
+end
+
 ------------------------------------------------------------------------------
 -- Prices
 ------------------------------------------------------------------------------

@@ -129,12 +129,17 @@ local function gatherMateZones(gm)
   return zones
 end
 
--- { [uiMapID] = { [node name] = count } }: Questie's, else GatherMate2's.
+-- { [uiMapID] = { [node name] = count } }: Questie's, else GatherMate2's; and which ("questie",
+-- "gathermate" or "none").
 function FS.Zones()
   local base = questieCounts()
-  if next(base) then return base end
+  if next(base) then return base, "questie" end
   local gm = gatherMate()
-  return gm and gatherMateZones(gm) or base
+  if gm then
+    local zones = gatherMateZones(gm)
+    if next(zones) then return zones, "gathermate" end
+  end
+  return base, "none"
 end
 
 -- Node positions on one map, for its pins: { { name, x, y } } with x, y in 0-1. Kept per map

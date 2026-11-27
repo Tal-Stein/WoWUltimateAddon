@@ -144,7 +144,7 @@ local function run(settingsOverride)
   execute(actions)
   s.ownedNames, s.removedFromGeneral = info.owned, info.removedFromGeneral
   if #info.skipped > 0 then ns:Print(string.format(L.CHAT_SKIPPED, table.concat(info.skipped, ", "))) end
-  if StaticPopup_Show then StaticPopup_Show("ULTIMATE_CHAT_RELOAD") end
+  ns.Dialog.Show("chatReload", L.CHAT_RELOAD_PROMPT, { accept = { label = L.RELOAD, fn = function() ReloadUI() end }, cancel = L.LATER })
   return true
 end
 
@@ -223,12 +223,4 @@ function FC.def.BuildSettings(ctx)
   ctx:Header(L.CHAT_SECTION_OPTIONS)
   ctx:Checkbox("focusedChat.copyHistory", L.CHAT_COPY_HISTORY, L.CHAT_COPY_HISTORY_TIP)
   ctx:Button(L.CHAT_APPLY_LABEL, L.CHAT_APPLY, function() FC:Apply() end, L.CHAT_APPLY_TIP)
-end
-
-if StaticPopupDialogs then
-  StaticPopupDialogs.ULTIMATE_CHAT_RELOAD = {
-    text = L.CHAT_RELOAD_PROMPT, button1 = L.RELOAD, button2 = L.LATER,
-    OnAccept = function() ReloadUI() end,
-    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-  }
 end

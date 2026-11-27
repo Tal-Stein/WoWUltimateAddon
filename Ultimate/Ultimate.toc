@@ -42,6 +42,7 @@ Services\Nameplates.lua
 Services\Portraits.lua
 Services\UIUtil.lua
 Services\Menu.lua
+Services\Dialog.lua
 Services\Targeting.lua
 Services\TargetBar.lua
 Services\Markers.lua

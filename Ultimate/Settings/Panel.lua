@@ -70,7 +70,7 @@ local function buildRoot(ctx)
       local v = scopes[i] and scopes[i].value or "account"
       if v ~= ns.global.scope then
         ns.global.scope = v
-        if StaticPopup_Show then StaticPopup_Show("ULTIMATE_RELOAD") end
+        ns.Dialog.Show("reload", L.RELOAD_PROMPT, { accept = { label = L.RELOAD, fn = function() ReloadUI() end }, cancel = L.LATER })
       end
     end, 2)
 end
@@ -191,12 +191,5 @@ end
 
 function Ultimate_OnCompartmentClick() ns.OpenSettings() end
 
-if StaticPopupDialogs then
-  StaticPopupDialogs.ULTIMATE_RELOAD = {
-    text = L.RELOAD_PROMPT, button1 = L.RELOAD, button2 = L.LATER,
-    OnAccept = function() ReloadUI() end,
-    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-  }
-end
 
 ns:On("ULT_MODULES_STARTED", Panel, function() Panel:Register() end)

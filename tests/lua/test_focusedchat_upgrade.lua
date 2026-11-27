@@ -46,7 +46,7 @@ describe("Focused Chat upgrade to additive tabs", function()
     assertTrue(has(calls, "shown,4,false"), "Raid tab closed")
     assertTrue(has(calls, "remove,3,RAID"), "raid leaves the Focused tab")
     assertEq(UltimateCharDB.focusedChatState.removedFromGeneral, {})
-    assertEq(popups[#popups], "ULTIMATE_CHAT_RELOAD")
+    assertEq(__ns.Dialog.frame.key, "chatReload"); assertTrue(__ns.Dialog.frame.shown)
   end)
   it("only once", function()
     calls, popups = {}, {}

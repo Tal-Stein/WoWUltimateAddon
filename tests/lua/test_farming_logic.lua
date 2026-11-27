@@ -283,3 +283,19 @@ describe("Values from ForeverDB", function()
     assertNil(FM.PickValue({ perKill = 99, kills = 2, source = "yours" }, nil))
   end)
 end)
+
+describe("Rating yardstick", function()
+  it("is the 90th-percentile value, so one odd mob doesn't make every other one poor", function()
+    local vals = {}
+    for i = 1, 19 do vals[i] = 10 end
+    vals[20] = 80 -- one mob seen once with a big coin drop
+    assertEq(FM.Percentile(vals, 0.9), 10)
+    assertEq(FM.RatioGrade(8, FM.Percentile(vals, 0.9)), "excellent")
+  end)
+  it("ignores coin averages from too few kills, keeping the drops", function()
+    local d = { coin = 80, kills = 1, drops = { 2589, 1000 } }
+    local v = FM.DataMobValue(d, function() return 10 end, {})
+    assertEq(v.coin, 0)
+    assertEq(v.perKill, 1)
+  end)
+end)

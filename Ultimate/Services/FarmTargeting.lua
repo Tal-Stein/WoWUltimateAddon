@@ -24,26 +24,29 @@ function FT.Value(npcID)
   if FM.Trusted(v) then return v end
 end
 
--- The yardstick for ratings: the best gold per kill among mobs around your level (ForeverDB and
--- your own kills), worked out once per level and data change.
+-- The yardstick for ratings: the 90th-percentile gold per kill among mobs around your level
+-- (ForeverDB and your own kills; not the very best, which is often one odd mob seen once), worked
+-- out once per level and data change.
 local bestCache = {}
 function FT.Reset() bestCache = {} end
 function FT.BestKnown()
   local level = ns.Safe.read(UnitLevel, "player") or 1
   local key = level .. ":" .. ns.FarmSources.generation
   if bestCache.key == key then return bestCache.best end
-  local best = 0
+  local values, seen = {}, {}
   local skills = ns.FarmSources.Skills()
   local consider = function(npcID)
+    if seen[npcID] then return end
+    seen[npcID] = true
     local v = ns.FarmSources.MobValue(npcID, skills)
-    if FM.Trusted(v) and v.perKill > best then best = v.perKill end
+    if FM.Trusted(v) then values[#values + 1] = v.perKill end
   end
   local _, levels = ns.FarmSources.MobIndex()
   for npcID, l in pairs(levels or {}) do
     if l[1] <= level + FM.MOB_ABOVE and l[2] >= level - FM.MOB_BELOW then consider(npcID) end
   end
   for npcID in pairs(ns.KillLog.Stats()) do consider(npcID) end
-  bestCache = { key = key, best = best > 0 and best or nil }
+  bestCache = { key = key, best = FM.Percentile(values, 0.9) }
   return bestCache.best
 end
 

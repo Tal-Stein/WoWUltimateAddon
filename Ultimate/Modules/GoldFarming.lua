@@ -34,12 +34,13 @@ local ICONS = {
 -- Points inside a zone's bounding box to try, center first, when looking for a spot on the zone.
 local PROBES = { { .5, .5 }, { .4, .5 }, { .6, .5 }, { .5, .4 }, { .5, .6 }, { .3, .3 }, { .7, .3 }, { .3, .7 }, { .7, .7 } }
 
-G.highlights, G.labels, G.pins, G.blobs = {}, {}, {}, {}
-local BLOB_SIZE = 0.028   -- share of the map's width; overlapping spots read as an area
-local BLOB_ALPHA = 0.45
-local AREA_MOBS = 12      -- mobs drawn per zone, most valuable first
-local CIRCLE_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local WHITE = "Interface\\Buttons\\WHITE8X8"
+G.highlights, G.labels, G.pins, G.areas = {}, {}, {}, {}
+local AREA_CELL = 0.05    -- spawns this close (share of the map) join one area
+local AREA_MOBS = 8       -- mobs drawn per zone, most valuable first
+local FILL_ALPHA = 0.22   -- the area's soft fill, like the game's quest areas
+local RING_ALPHA = 0.65   -- and its outline; full when hovered
+local AREA_FILL = "Interface\\AddOns\\Ultimate\\Media\\AreaFill"
+local AREA_RING = "Interface\\AddOns\\Ultimate\\Media\\AreaRing"
 
 local function o() return ns.db.farming end
 local function active() return ns.Modules:IsActive("farming") and o().showOnMap end
@@ -112,8 +113,11 @@ G.LENSES = { "mobs", "gathering" }
 
 -- Scores are worked out again only after something they depend on changed (G.Invalidate: map
 -- opened, skills, prices, kills, settings); browsing the map just redraws.
-G.dirty = true
-function G.Invalidate() G.dirty = true end
+G.dirty, G.version = true, 0
+function G.Invalidate()
+  G.dirty, G.version = true, G.version + 1
+  if G.ClearAreas then G.ClearAreas() end
+end
 
 function G.Score()
   if G.dirty or not G.scores then
@@ -512,6 +516,7 @@ local function pin(i)
     p:SetSize(PIN_SIZE, PIN_SIZE)
     p.icon = p:CreateTexture(nil, "ARTWORK")
     p.icon:SetAllPoints(p)
+    if p.SetMouseClickEnabled then p:SetMouseClickEnabled(false) end -- clicks reach the map
     p:SetScript("OnEnter", pinEnter)
     p:SetScript("OnLeave", pinLeave)
     G.pins[i] = p
@@ -541,14 +546,16 @@ local function pinZone(mapID)
 end
 
 ------------------------------------------------------------------------------
--- Mob areas (zone maps, Mobs lens): every spawn point of the zone's mobs as a soft colored spot,
--- so where they live reads as colored areas, like Questie's quest areas. Colored by the mob's
--- rating: its recorded gold per kill against your best, or (not farmed yet) how many live here
--- against the zone's most common mob.
+-- Mob areas (zone maps, Mobs lens): each mob's spawn points grouped into areas (FM.Clusters), each
+-- drawn once as a soft fill with an outline, the way the game marks quest areas, in the color of
+-- the mob's rating: its recorded gold per kill against your best, or (not farmed yet) how many
+-- live here against the zone's most common mob. Hovering an area names the mob; the map still
+-- takes clicks through it.
 ------------------------------------------------------------------------------
-local function blobEnter(self)
+local function areaEnter(self)
   local e = self.entry
-  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+  self.ring:SetAlpha(1)
+  GameTooltip:SetOwner(self, "ANCHOR_CURSOR_RIGHT")
   local c = ns.UI.DifficultyColor and ns.UI.DifficultyColor(e.maxLevel) or { r = 1, g = 1, b = 1 }
   local levels = e.minLevel == e.maxLevel and tostring(e.minLevel) or (e.minLevel .. "-" .. e.maxLevel)
   GameTooltip:SetText(string.format("%s (%s)", e.name or "?", levels), c.r, c.g, c.b)
@@ -558,25 +565,42 @@ local function blobEnter(self)
   GameTooltip:Show()
 end
 
-local function blob(i)
-  local b = G.blobs[i]
-  if not b then
-    b = CreateFrame("Button", nil, G.pinLayer)
-    b.tex = b:CreateTexture(nil, "ARTWORK")
-    b.tex:SetAllPoints(b)
-    b.tex:SetTexture(WHITE)
-    if b.tex.SetMask then b.tex:SetMask(CIRCLE_MASK) end
-    b:SetScript("OnEnter", blobEnter)
-    b:SetScript("OnLeave", pinLeave)
-    G.blobs[i] = b
+local function areaLeave(self)
+  self.ring:SetAlpha(RING_ALPHA)
+  GameTooltip:Hide()
+end
+
+local function areaFrame(i)
+  local a = G.areas[i]
+  if not a then
+    a = CreateFrame("Button", nil, G.pinLayer)
+    a.fill = a:CreateTexture(nil, "BORDER")
+    a.fill:SetAllPoints(a)
+    a.fill:SetTexture(AREA_FILL)
+    a.ring = a:CreateTexture(nil, "ARTWORK")
+    a.ring:SetAllPoints(a)
+    a.ring:SetTexture(AREA_RING)
+    if a.SetMouseClickEnabled then a:SetMouseClickEnabled(false) end -- clicks reach the map
+    a:SetScript("OnEnter", areaEnter)
+    a:SetScript("OnLeave", areaLeave)
+    G.areas[i] = a
   end
-  return b
+  return a
 end
 
 function G.MobGrade(e, best, most)
   if e.price then return FM.RatioGrade(e.price, best) or "poor" end
   return FM.RatioGrade(e.count, most) or "poor"
 end
+
+-- Areas per mob on a map, worked out once (until the scores change).
+local areaCache = {}
+local function areasOf(mapID, npcID)
+  local key = mapID * 1000000 + npcID
+  if not areaCache[key] then areaCache[key] = FM.Clusters(FS.MobPoints(mapID, npcID), AREA_CELL) end
+  return areaCache[key]
+end
+G.ClearAreas = function() areaCache = {} end
 
 local function mobAreas(mapID)
   local z = G.byMap[mapID]
@@ -585,22 +609,25 @@ local function mobAreas(mapID)
   for _, e in ipairs(z.entries) do if e.count > most then most = e.count end end
   local best = ns.FarmTargeting.BestKnown()
   local w, h = canvasSize()
-  local size = math.max(6, w * BLOB_SIZE)
   local n = 0
-  for i, e in ipairs(z.entries) do
-    if i > AREA_MOBS then break end
+  -- Least valuable first, so the best mob's areas are drawn on top.
+  local last = math.min(#z.entries, AREA_MOBS)
+  for i = last, 1, -1 do
+    local e = z.entries[i]
     local grade = G.MobGrade(e, best, most)
     local c = G.COLORS[grade]
-    for _, pt in ipairs(FS.MobPoints(mapID, e.npcID)) do
+    for _, area in ipairs(areasOf(mapID, e.npcID)) do
       n = n + 1
-      local b = blob(n)
-      b.entry, b.grade = e, grade
-      b:SetSize(size, size)
-      b.tex:SetVertexColor(c[1], c[2], c[3])
-      b.tex:SetAlpha(BLOB_ALPHA)
-      b:ClearAllPoints()
-      b:SetPoint("CENTER", G.overlay, "TOPLEFT", pt.x * w, -pt.y * h)
-      b:Show()
+      local a = areaFrame(n)
+      a.entry, a.grade = e, grade
+      a:SetSize(math.max(10, area.rx * 2 * w), math.max(10, area.ry * 2 * h))
+      a.fill:SetVertexColor(c[1], c[2], c[3])
+      a.fill:SetAlpha(FILL_ALPHA)
+      a.ring:SetVertexColor(c[1], c[2], c[3])
+      a.ring:SetAlpha(RING_ALPHA)
+      a:ClearAllPoints()
+      a:SetPoint("CENTER", G.overlay, "TOPLEFT", area.x * w, -area.y * h)
+      a:Show()
     end
   end
 end
@@ -661,7 +688,7 @@ local function clear()
   for _, t in ipairs(G.highlights) do t:Hide() end
   for _, t in ipairs(G.labels) do t:Hide() end
   for _, p in ipairs(G.pins) do p:Hide() end
-  for _, b in ipairs(G.blobs) do b:Hide() end
+  for _, a in ipairs(G.areas) do a:Hide() end
 end
 
 -- OpenMap draws its stitched world over the map canvas, up to OpenMapAPI.ArtTopLevel(); frames
@@ -675,18 +702,26 @@ function G.LiftOverOpenMap()
   if (G.pinLayer:GetFrameLevel() or 0) <= top + 1 then G.pinLayer:SetFrameLevel(top + 2) end
 end
 
+-- Redraws only when what's drawn would change: another map, a new score (G.Invalidate), another
+-- size, lens or view. Panning OpenMap's stitched map, for one, calls this many times a second.
 function G.Refresh()
   if not G.attached then return end
   G.LiftOverOpenMap()
-  clear()
-  G.hover = nil
   G.UpdateButton()
   if not active() or not WorldMapFrame:IsShown() then
+    clear()
+    G.drawn = nil
     if G.panel then G.panel:Hide() end
     return
   end
-  G.Score()
   local mapID = WorldMapFrame:GetMapID()
+  local w, h = canvasSize()
+  local sig = table.concat({ tostring(mapID), G.version, w, h, lens(), view() }, "|")
+  if sig == G.drawn and not G.dirty then return end
+  G.drawn = sig
+  clear()
+  G.hover = nil
+  G.Score()
   local info = mapID and ns.Safe.read(C_Map.GetMapInfo, mapID)
   G.mapID, G.mapType = mapID, info and info.mapType
   if G.mapType == mapTypes().Continent then

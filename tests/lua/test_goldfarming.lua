@@ -377,24 +377,25 @@ describe("Mobs lens", function()
   it("doesn't pin gathering nodes", function()
     assertEq(#shownPins(), 0)
   end)
-  it("colors where each mob lives on the zone map, by its rating", function()
+  it("draws where each mob lives as areas, colored by its rating", function()
     FS.MobPoints = function(mapID, npcID)
       if npcID == 116 then return { { x = 0.4, y = 0.4 }, { x = 0.42, y = 0.41 } } end
       if npcID == 117 then return { { x = 0.6, y = 0.7 } } end
       return {}
     end
+    G.Invalidate()
     open(1436)
     local shown, grades = 0, {}
-    for _, b in ipairs(G.blobs) do
-      if b.shown then shown = shown + 1; grades[b.entry.npcID] = b.grade end
+    for _, a in ipairs(G.areas) do
+      if a.shown then shown = shown + 1; grades[a.entry.npcID] = a.grade end
     end
-    assertEq(shown, 3)
+    assertEq(shown, 2, "one area per group of nearby spawns")
     assertEq(grades[116], "excellent", "the mob you farm best")
     assertEq(grades[117], "fair", "not farmed: 12 of the zone's 40")
   end)
   it("shows a mob's level, numbers and rating when hovering its area", function()
     local b
-    for _, x in ipairs(G.blobs) do if x.shown and x.entry.npcID == 116 then b = x end end
+    for _, x in ipairs(G.areas) do if x.shown and x.entry.npcID == 116 then b = x end end
     local lines = {}
     GameTooltip = GameTooltip or CreateFrame("Frame", "GameTooltip")
     local oldSet, oldAdd = GameTooltip.SetText, GameTooltip.AddLine
@@ -409,7 +410,7 @@ describe("Mobs lens", function()
   it("are hidden in the gathering lens", function()
     ns.Menu.Set("farming.lens", "gathering")
     open(1436)
-    for _, b in ipairs(G.blobs) do assertFalse(b.shown) end
+    for _, a in ipairs(G.areas) do assertFalse(a.shown) end
     ns.Menu.Set("farming.lens", "mobs")
   end)
 end)
@@ -426,5 +427,20 @@ describe("With OpenMap", function()
     assertEq(G.overlay.level, 3001)
     assertEq(G.pinLayer.level, 3002)
     OpenMapAPI = nil
+  end)
+end)
+
+describe("Map performance", function()
+  it("doesn't redraw while nothing changed (OpenMap pans call this many times a second)", function()
+    open(1436)
+    local calls = 0
+    local mp = FS.MobPoints
+    FS.MobPoints = function(...) calls = calls + 1; return mp(...) end
+    for _ = 1, 20 do WorldMapFrame:OnMapChanged() end
+    assertEq(calls, 0)
+    G.Invalidate()
+    WorldMapFrame:OnMapChanged()
+    assertTrue(calls > 0, "redraws after a change")
+    FS.MobPoints = mp
   end)
 end)

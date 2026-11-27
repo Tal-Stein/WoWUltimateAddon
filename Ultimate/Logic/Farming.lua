@@ -227,3 +227,45 @@ function FM.MobZones(index, levels, level, values, names, area)
   FM.Grade(list)
   return list
 end
+
+-- Spawn points (0-1) grouped into areas: points in the same or neighbouring grid cells (cell wide)
+-- join one area. Each area: center (x, y, the middle of the points' extent), radii (rx, ry: half the points' extent
+-- plus half a cell, so a lone spawn still gets a small area) and n points.
+function FM.Clusters(points, cell)
+  local grid = {}
+  local function key(cx, cy) return cx * 100000 + cy end
+  for _, p in ipairs(points) do
+    local cx, cy = math.floor(p.x / cell), math.floor(p.y / cell)
+    local k = key(cx, cy)
+    local c = grid[k]
+    if not c then c = { cx = cx, cy = cy, pts = {} }; grid[k] = c end
+    c.pts[#c.pts + 1] = p
+  end
+  local areas, seen = {}, {}
+  for k, start in pairs(grid) do
+    if not seen[k] then
+      seen[k] = true
+      local stack, pts = { start }, {}
+      while #stack > 0 do
+        local c = table.remove(stack)
+        for _, p in ipairs(c.pts) do pts[#pts + 1] = p end
+        for dx = -1, 1 do
+          for dy = -1, 1 do
+            local nk = key(c.cx + dx, c.cy + dy)
+            if grid[nk] and not seen[nk] then seen[nk] = true; stack[#stack + 1] = grid[nk] end
+          end
+        end
+      end
+      local minX, maxX, minY, maxY = 1, 0, 1, 0
+      for _, p in ipairs(pts) do
+        if p.x < minX then minX = p.x end
+        if p.x > maxX then maxX = p.x end
+        if p.y < minY then minY = p.y end
+        if p.y > maxY then maxY = p.y end
+      end
+      areas[#areas + 1] = { x = (minX + maxX) / 2, y = (minY + maxY) / 2, n = #pts,
+        rx = (maxX - minX) / 2 + cell / 2, ry = (maxY - minY) / 2 + cell / 2 }
+    end
+  end
+  return areas
+end

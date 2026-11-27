@@ -116,6 +116,7 @@ G.LENSES = { "mobs", "gathering" }
 G.dirty, G.version = true, 0
 function G.Invalidate()
   G.dirty, G.version = true, G.version + 1
+  if ns.FarmTargeting and ns.FarmTargeting.Reset then ns.FarmTargeting.Reset() end
   if G.ClearAreas then G.ClearAreas() end
 end
 
@@ -127,8 +128,15 @@ function G.Score()
     if lens() == "mobs" then
       local index, levels = FS.MobIndex()
       if index then
+        -- Values looked up as needed (your kills or ForeverDB), for the mobs around your level.
+        local skills = G.skills
+        local values = setmetatable({}, { __index = function(t, npcID)
+          local v = FS.MobValue(npcID, skills) or false
+          rawset(t, npcID, v)
+          return v
+        end })
         G.scores = FM.MobZones(index, levels, ns.Safe.read(UnitLevel, "player") or 1,
-          FS.Mobs(G.skills).values, FS.NpcName, area)
+          setmetatable({}, { __index = function(_, id) return values[id] or nil end }), FS.NpcName, area)
       else
         G.scores, G.building = {}, true
       end
@@ -156,11 +164,12 @@ local function profLine()
 end
 
 -- "50c per kill · 1g/hr (12 kills)"
-local function mobValueText(perKill, kills)
-  local text = string.format(L.FARM_PER_KILL, money(perKill))
-  local hour = FM.PerHour(perKill, ns.KillLog.Pace())
+local function mobValueText(v)
+  local text = string.format(L.FARM_PER_KILL, money(v.perKill))
+  local hour = FM.PerHour(v.perKill, ns.KillLog.Pace())
   if hour then text = text .. "  ·  " .. string.format(L.FARM_PER_HOUR, money(hour)) end
-  return text .. "  |cff808080(" .. string.format(L.FARM_KILLS, kills) .. ")|r"
+  local whose = v.source == "forever" and L.FARM_FROM_FOREVER or string.format(L.FARM_KILLS, v.kills or 0)
+  return text .. "  |cff808080(" .. whose .. ")|r"
 end
 G.MobValueText = mobValueText
 
@@ -171,7 +180,7 @@ local function entryLine(e)
       text = text .. string.format(e.minLevel == e.maxLevel and " (%d)" or " (%d-%d)", e.minLevel, e.maxLevel)
       text = text .. "  |cff808080" .. string.format(L.FARM_HERE_COUNT, e.count) .. "|r"
     end
-    if e.price then return text .. "  " .. mobValueText(e.price, e.kills) end
+    if e.price then return text .. "  " .. mobValueText(e.value or { perKill = e.price, kills = e.kills }) end
     return text .. "  |cff808080" .. L.FARM_NOT_FARMED .. "|r"
   end
   local text = string.format(L.FARM_NODE_COUNT, e.count, e.name)
@@ -562,6 +571,7 @@ local function areaEnter(self)
   GameTooltip:AddLine(string.format(L.FARM_LIVE_HERE, e.count), 1, 1, 1)
   local text, r, g, b = ns.FarmTargeting.TooltipLine(e.npcID)
   GameTooltip:AddLine(text, r, g, b)
+  ns.FarmTargeting.AddDrops(GameTooltip, e.npcID)
   GameTooltip:Show()
 end
 
@@ -799,6 +809,11 @@ function G.Report()
   ns:Print(L.FARM_REPORT_TITLE)
   ns:Print(string.format(L.FARM_REPORT_SOURCES, st.questie or L.FARM_NONE, st.questieDB or L.FARM_NONE,
     yn(st.gathermate), yn(st.auctionator)))
+  local fd = FS.Forever()
+  local nGold, nDrops = 0, 0
+  for _ in pairs(fd and fd.gold or {}) do nGold = nGold + 1 end
+  for _ in pairs(fd and fd.drops or {}) do nDrops = nDrops + 1 end
+  ns:Print(string.format(L.FARM_REPORT_FOREVER, st.foreverDB or L.FARM_NONE, nGold, nDrops))
   local skills = FS.Skills()
   local parts = {}
   for _, prof in ipairs({ "herbalism", "mining", "skinning", "fishing" }) do
@@ -874,6 +889,7 @@ local function onUnitTooltip(tooltip, data)
   end
   local text, r, g, b = ns.FarmTargeting.TooltipLine(npcID)
   tooltip:AddLine(text, r, g, b)
+  if tooltip.AddDoubleLine then ns.FarmTargeting.AddDrops(tooltip, npcID) end
 end
 
 local tooltipHooked = false
@@ -930,6 +946,7 @@ function G.def.BuildSettings(ctx)
   local parts = {}
   if s.questie then parts[#parts + 1] = string.format(L.FARM_SRC_QUESTIE, s.questie) end
   if s.gathermate then parts[#parts + 1] = L.FARM_SRC_GATHERMATE end
+  if s.foreverDB then parts[#parts + 1] = string.format(L.FARM_SRC_FOREVERDB, s.foreverDB) end
   parts[#parts + 1] = s.auctionator and L.FARM_SRC_AUCTIONATOR or L.FARM_SRC_VENDOR
   ctx:Header(string.format(L.FARM_SOURCES, table.concat(parts, ", ")))
   ctx:Checkbox("farming.showOnMap", L.FARM_SHOW_MAP, L.FARM_SHOW_MAP_TIP)

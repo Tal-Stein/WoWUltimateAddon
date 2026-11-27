@@ -16,6 +16,7 @@ function FM.CanGather(node, skills)
 end
 
 FM.MIN_KILLS = 5  -- kills of a mob before its value per kill counts
+FM.OWN_TRUST = 20 -- your own kills of a mob that outweigh ForeverDB's crowd data for it
 FM.MIN_PACE = 10  -- timed kills before gold per hour is shown
 
 local function itemsValue(items, price)
@@ -36,7 +37,41 @@ function FM.MobValue(stat, price, skills)
   local coin = (stat.copper or 0) / kills
   local loot = itemsValue(stat.items, price) / kills
   local skin = (skills and skills.skinning) and itemsValue(stat.skins, price) / kills or 0
-  return { perKill = coin + loot + skin, coin = coin, loot = loot, skin = skin, kills = kills }
+  return { perKill = coin + loot + skin, coin = coin, loot = loot, skin = skin, kills = kills, source = "yours" }
+end
+
+-- A mob's value from ForeverDB (d: { coin = average copper, drops = { itemID, chance, ... },
+-- skins = { itemID, chance, ... }, kills = kills behind the coin }; chances per 10000), or nil.
+function FM.DataMobValue(d, price, skills)
+  if not d then return nil end
+  local function sum(list)
+    local total = 0
+    for i = 1, #(list or {}), 2 do
+      local p = price(list[i])
+      if p then total = total + p * list[i + 1] / 10000 end
+    end
+    return total
+  end
+  local coin = d.coin or 0
+  local loot = sum(d.drops)
+  local skin = (skills and skills.skinning) and sum(d.skins) or 0
+  local perKill = coin + loot + skin
+  if perKill <= 0 then return nil end
+  return { perKill = perKill, coin = coin, loot = loot, skin = skin, dataKills = d.kills, source = "forever" }
+end
+
+-- Which value to believe: your own kills once there are many, else ForeverDB's, else your own
+-- once there are a few.
+function FM.PickValue(own, data)
+  if own and own.kills >= FM.OWN_TRUST and own.perKill > 0 then return own end
+  if data then return data end
+  if own and own.kills >= FM.MIN_KILLS and own.perKill > 0 then return own end
+  return nil
+end
+
+-- Whether a value is good enough to show and grade by.
+function FM.Trusted(v)
+  return v ~= nil and (v.perKill or 0) > 0 and (v.source == "forever" or (v.kills or 0) >= FM.MIN_KILLS)
 end
 
 -- Copper per hour at your own pace (pace: { sum = seconds between kills, n = timed kills }).
@@ -61,7 +96,7 @@ function FM.ScoreZones(zones, nodes, skills, price, area, mobs)
     local entries, value = {}, 0
     for npcID, spawns in pairs(mobs and mobs.zones[mapID] or {}) do
       local v = mobs.values[npcID]
-      if v and v.kills >= FM.MIN_KILLS and v.perKill > 0 then
+      if FM.Trusted(v) then
         entries[#entries + 1] = { kind = "mob", npcID = npcID, name = mobs.names[npcID] or tostring(npcID),
           count = spawns, price = v.perKill, kills = v.kills, value = v, status = "yes" }
         value = value + spawns * v.perKill
@@ -201,7 +236,7 @@ function FM.MobZones(index, levels, level, values, names, area)
       local l = levels[npcID]
       if l and l[1] <= level + FM.MOB_ABOVE and l[2] >= level - FM.MOB_BELOW then
         local v = values and values[npcID]
-        local known = v and v.kills >= FM.MIN_KILLS and v.perKill > 0
+        local known = FM.Trusted(v)
         entries[#entries + 1] = { kind = "mob", npcID = npcID, name = names(npcID), count = spawns,
           minLevel = l[1], maxLevel = l[2], price = known and v.perKill or nil,
           kills = known and v.kills or nil, value = known and v or nil, status = "yes" }

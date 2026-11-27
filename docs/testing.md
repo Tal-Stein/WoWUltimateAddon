@@ -106,6 +106,9 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Right-click the bar: Lock, Hide flight timer, Settings. Dragging it moves it (unlocked).
 
 ## Gold Farming
+- [ ] With ForeverDB installed: about 20 s after login (once per ForeverDB version) it's read;
+      `/ult farm` shows "ForeverDB <date>, coin for ~1450 mobs, drops for ~4500 mobs". Mob
+      tooltips and areas then show gold per kill "(Forever data)" and the top three drops.
 - [ ] Zone map, Mobs lens: soft colored spots where each listed mob lives (Questie-style areas),
       gold/green/blue/grey by rating; hovering a spot shows the mob, level, how many live there
       and its grinding rating. Continent maps: zones tinted in their grade's color.

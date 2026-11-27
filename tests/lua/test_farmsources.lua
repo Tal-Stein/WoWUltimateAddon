@@ -37,10 +37,21 @@ QuestieLoader = { _modules = { ZoneDB = {
   GetUiMapIdByAreaId = function(_, a) return AREA[a] end,
   GetAreaIdByUiMapId = function(_, m) for a, id in pairs(AREA) do if id == m then return a end end end,
 } } }
-local versions = { Questie = "12.11.1", QuestieDB = "1.1.3" }
+local versions = { Questie = "12.11.1", QuestieDB = "1.1.3", ForeverDB = "2026-11-27" }
+local foreverLoads = 0
 C_AddOns = {
   GetAddOnMetadata = function(a, k) if k == "Version" then return versions[a] end end,
   IsAddOnLoaded = function(a) return versions[a] ~= nil end,
+  LoadAddOn = function(a)
+    if a ~= "ForeverDB" then return false end
+    foreverLoads = foreverLoads + 1
+    ForeverDB = {
+      gold = { [116] = { 7, 2, 15, 16 } },
+      drop = { [2589] = { 116, 2972, 117, 5 }, [1019] = { 116, 6600 } },
+      skin = { [2318] = { 116, 900 } },
+    }
+    return true
+  end,
 }
 C_SkillInfo = { GetSkillLineInfoByID = function(id)
   if id == 182 then return { skillID = 182, name = "Herbalism", rank = 120 } end
@@ -194,6 +205,33 @@ describe("Where a mob spawns", function()
     NPCS[116].spawns[40][3] = { -1, -1 }
     assertEq(FS.MobPoints(1436, 116), { { x = 0.01, y = 0.01 }, { x = 0.02, y = 0.02 } })
     NPCS[116].spawns[40][3] = nil
+  end)
+end)
+
+describe("ForeverDB", function()
+  it("is read in the background when its version is new, and kept compact", function()
+    FS.Forever() -- (an earlier lookup may already have started it)
+    __advance(1, true)
+    local d = FS.Forever()
+    assertEq(d.gold[116], { 7, 2, 15, 16 })
+    assertEq(d.drops[116], d.drops[116][1] == 2589 and { 2589, 2972, 1019, 6600 } or { 1019, 6600, 2589, 2972 })
+    assertNil(d.drops[117], "drops rarer than 0.2% left out")
+    assertEq(d.skins[116], { 2318, 900 })
+    assertEq(UltimateDB.farmForeverDB.version, "2026-11-27")
+    assertEq(foreverLoads, 1)
+  end)
+  it("isn't loaded again until its version changes", function()
+    FS.Forever(); FS.Forever()
+    assertEq(foreverLoads, 1)
+  end)
+  it("gives a mob's value and its best drops", function()
+    scans[2589] = 10
+    local v = FS.MobValue(116, {})
+    assertEq(v.source, "forever")
+    assertTrue(math.abs(v.perKill - (7 + 10 * 0.2972)) < 1e-9, tostring(v.perKill))
+    local drops = FS.TopDrops(116, 3)
+    assertEq(drops[1].itemID, 2589)
+    assertEq(drops[1].chance, 0.2972)
   end)
 end)
 

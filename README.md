@@ -41,7 +41,8 @@ updating them updates the map:
 - **Node locations:** Questie's Forever database, and GatherMate2's when it's installed.
 - **Prices:** Auctionator's scans of your realm, otherwise the vendor price.
 - **Node facts:** each node's required skill and item ID live in `Ultimate/Data/GatherNodes.lua`.
-- **Gold per kill:** recorded from your own Forever kills, shared by all your characters. Where each mob spawns comes from Questie.
+- **Gold per kill and drops:** [ForeverDB](https://github.com/Woulve/forever-db) when installed (Forever coin from recorded kills; drop and skinning chances, Forever counts where there are enough kills, else the median of VMaNGOS, cMaNGOS and pfQuest; GPL, read at runtime, loaded only when its version changes and kept compact). Your own kills take over for a mob once you have 20. Where each mob spawns comes from Questie.
+- **Herb and ore nodes:** GatherMate2 with GatherMate2_Data imported, when it covers more than Questie.
 
 ## Development
 

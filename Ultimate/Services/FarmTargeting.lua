@@ -18,22 +18,33 @@ function FT.Active()
   return o and o.targetMode and ns.Modules:IsActive("farming") or false
 end
 
--- What one kill of this NPC has been worth to you, once you've killed it often enough to trust.
+-- What one kill of this NPC is worth (your kills or ForeverDB), when it's known well enough.
 function FT.Value(npcID)
-  local stat = npcID and ns.KillLog.Stats()[npcID]
-  local v = stat and FM.MobValue(stat, ns.FarmSources.Price, ns.FarmSources.Skills())
-  if v and v.kills >= FM.MIN_KILLS and v.perKill > 0 then return v end
+  local v = npcID and ns.FarmSources.MobValue(npcID)
+  if FM.Trusted(v) then return v end
 end
 
--- The best gold per kill among all the mobs you've farmed: the yardstick for ratings.
+-- The yardstick for ratings: the best gold per kill among mobs around your level (ForeverDB and
+-- your own kills), worked out once per level and data change.
+local bestCache = {}
+function FT.Reset() bestCache = {} end
 function FT.BestKnown()
+  local level = ns.Safe.read(UnitLevel, "player") or 1
+  local key = level .. ":" .. ns.FarmSources.generation
+  if bestCache.key == key then return bestCache.best end
   local best = 0
   local skills = ns.FarmSources.Skills()
-  for _, stat in pairs(ns.KillLog.Stats()) do
-    local v = FM.MobValue(stat, ns.FarmSources.Price, skills)
-    if v and v.kills >= FM.MIN_KILLS and v.perKill > best then best = v.perKill end
+  local consider = function(npcID)
+    local v = ns.FarmSources.MobValue(npcID, skills)
+    if FM.Trusted(v) and v.perKill > best then best = v.perKill end
   end
-  return best > 0 and best or nil
+  local _, levels = ns.FarmSources.MobIndex()
+  for npcID, l in pairs(levels or {}) do
+    if l[1] <= level + FM.MOB_ABOVE and l[2] >= level - FM.MOB_BELOW then consider(npcID) end
+  end
+  for npcID in pairs(ns.KillLog.Stats()) do consider(npcID) end
+  bestCache = { key = key, best = best > 0 and best or nil }
+  return bestCache.best
 end
 
 -- "31s", "1g 20s", "45c": the bar's short gold.
@@ -58,8 +69,17 @@ function FT.TooltipLine(npcID)
   if not v then return L.FARM_TIP_UNRATED, 0.6, 0.6, 0.6 end
   local grade = FM.RatioGrade(v.perKill, FT.BestKnown())
   local c = ns.GoldFarming.COLORS[grade]
-  return string.format(L.FARM_TIP_RATED, L["FARM_GRADE_" .. grade], ns.GoldFarming.MobValueText(v.perKill, v.kills)),
+  return string.format(L.FARM_TIP_RATED, L["FARM_GRADE_" .. grade], ns.GoldFarming.MobValueText(v)),
     c[1], c[2], c[3]
+end
+
+-- A mob's best drops under its rating: "  Linen Cloth  30%" (from ForeverDB).
+function FT.AddDrops(tt, npcID)
+  for _, d in ipairs(ns.FarmSources.TopDrops(npcID, 3)) do
+    local name = C_Item and C_Item.GetItemNameByID and ns.Safe.read(C_Item.GetItemNameByID, d.itemID)
+    if not name and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, d.itemID) end
+    tt:AddDoubleLine("  " .. (name or ("#" .. d.itemID)), string.format("%.1f%%", d.chance * 100), 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
+  end
 end
 
 -- Targeting provider: grinding candidates among the nameplates.
@@ -79,6 +99,7 @@ function FT.Candidates(mobs)
         tooltip = function(tt)
           local text, r, g, b = FT.TooltipLine(npcID)
           tt:AddLine(text, r, g, b)
+          FT.AddDrops(tt, npcID)
         end,
       }
     end

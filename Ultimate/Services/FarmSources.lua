@@ -85,7 +85,10 @@ function FS.Prepare()
   local objects = questieObjects()
   if objects and type(objects.BuildNameIndexAsync) == "function" then pcall(objects.BuildNameIndexAsync) end
   -- Start reading which mobs live where once Questie has settled in.
-  if C_Timer then C_Timer.After(10, function() FS.MobIndex() end) end
+  if C_Timer then
+    C_Timer.After(10, function() FS.MobIndex() end)
+    C_Timer.After(20, function() FS.Forever() end)
+  end
 end
 
 function FS.SourceKey()
@@ -239,7 +242,7 @@ function FS.Mobs(skills)
   for npcID, stat in pairs(ns.KillLog.Stats()) do
     local rank = npc(npcID, "rank") or 0
     local minLevel = npc(npcID, "minLevel") or 0
-    local value = rank == 0 and minLevel <= level + ABOVE_LEVEL and ns.Farming.MobValue(stat, FS.Price, skills)
+    local value = rank == 0 and minLevel <= level + ABOVE_LEVEL and FS.MobValue(npcID, skills)
     if value then
       mobs.values[npcID] = value
       mobs.names[npcID] = npc(npcID, "name")
@@ -361,6 +364,120 @@ function FS.ReadMobPoints(mapID, npcID)
 end
 
 ------------------------------------------------------------------------------
+-- ForeverDB (a shared Forever database add-on, GPL, read at runtime): coin per mob from recorded
+-- Forever kills, and drop and skinning chances (Forever counts where enough kills exist, else
+-- the median of VMaNGOS, cMaNGOS and pfQuest). Loaded whole it's ~90 MB, so it's loaded only when
+-- its version changes (at most once a day), out of combat; what farming needs is kept compact in
+-- UltimateDB.farmForeverDB and every other session reads only that.
+------------------------------------------------------------------------------
+local MIN_CHANCE = 20     -- drops rarer than 0.2% (chances per 10000) aren't worth carrying
+local CONVERT_BATCH = 2000
+local forever, foreverBuilding
+FS.generation = 0         -- goes up when farming data changes (ForeverDB read, prices)
+
+function FS.ForeverVersion() return meta("ForeverDB", "Version") end
+
+local function foreverDone(data)
+  foreverBuilding = false
+  if ns.global then ns.global.farmForeverDB = data end
+  forever = data
+  FS.generation = FS.generation + 1
+  ns:Fire("ULT_FARM_DATA")
+end
+
+local function convertForever(version)
+  local db = _G.ForeverDB
+  if type(db) ~= "table" or type(db.drop) ~= "table" then foreverBuilding = false; return end
+  local data = { version = version, gold = {}, drops = {}, skins = {} }
+  for npcID, g in pairs(db.gold or {}) do
+    if type(g) == "table" and g[1] then data.gold[npcID] = { g[1], g[2], g[3], g[4] } end
+  end
+  local function addTo(into, item, list)
+    for i = 1, #list, 2 do
+      local npcID, chance = list[i], list[i + 1]
+      if type(npcID) == "number" and type(chance) == "number" and chance >= MIN_CHANCE then
+        local t = into[npcID]
+        if not t then t = {}; into[npcID] = t end
+        t[#t + 1] = item
+        t[#t + 1] = chance
+      end
+    end
+  end
+  for item, list in pairs(db.skin or {}) do addTo(data.skins, item, list) end
+  local key
+  local function step()
+    local n = 0
+    local list
+    key, list = next(db.drop, key)
+    while key ~= nil do
+      addTo(data.drops, key, list)
+      n = n + 1
+      if n >= CONVERT_BATCH then C_Timer.After(0, step); return end
+      key, list = next(db.drop, key)
+    end
+    foreverDone(data)
+  end
+  step()
+end
+
+-- ForeverDB's farming data: { version, gold = { [npcID] = { avg, min, max, kills } },
+-- drops/skins = { [npcID] = { itemID, chance, ... } } }, or nil when it isn't installed (or is
+-- still being read: ULT_FARM_DATA fires when it's ready).
+function FS.Forever()
+  local version = FS.ForeverVersion()
+  if not version then return nil end
+  if forever and forever.version == version then return forever end
+  local cache = ns.global and ns.global.farmForeverDB
+  if cache and cache.version == version then forever = cache; return forever end
+  if not foreverBuilding and not ns.Safe.read(InCombatLockdown) then
+    local load = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
+    if load then
+      foreverBuilding = true
+      local ok = pcall(load, "ForeverDB")
+      if ok and type(_G.ForeverDB) == "table" then
+        C_Timer.After(0, function() convertForever(version) end)
+      else
+        foreverBuilding = false
+      end
+    end
+  end
+  return cache -- the previous version's meanwhile, if any
+end
+
+local function foreverEntry(npcID)
+  local d = FS.Forever()
+  if not d then return nil end
+  local g = d.gold[npcID]
+  local drops, skins = d.drops[npcID], d.skins[npcID]
+  if not g and not drops and not skins then return nil end
+  return { coin = g and g[1], kills = g and g[4], drops = drops, skins = skins }
+end
+
+-- What one kill of a mob is worth to you: your own kills (Services/KillLog.lua) or ForeverDB,
+-- whichever FM.PickValue trusts; nil when neither knows.
+function FS.MobValue(npcID, skills)
+  skills = skills or FS.Skills()
+  local stat = ns.KillLog.Stats()[npcID]
+  local own = stat and ns.Farming.MobValue(stat, FS.Price, skills)
+  local data = ns.Farming.DataMobValue(foreverEntry(npcID), FS.Price, skills)
+  return ns.Farming.PickValue(own, data)
+end
+
+-- A mob's most valuable drops: { { itemID, chance (0-1), value (copper per kill) } }, best first.
+function FS.TopDrops(npcID, n)
+  local e = foreverEntry(npcID)
+  local list = {}
+  for i = 1, #(e and e.drops or {}), 2 do
+    local item, chance = e.drops[i], e.drops[i + 1] / 10000
+    local p = FS.Price(item)
+    if p then list[#list + 1] = { itemID = item, chance = chance, value = p * chance } end
+  end
+  table.sort(list, function(a, b) return a.value > b.value end)
+  while #list > (n or 3) do table.remove(list) end
+  return list
+end
+
+------------------------------------------------------------------------------
 -- Prices
 ------------------------------------------------------------------------------
 local function auctionator()
@@ -396,6 +513,7 @@ function FS.Status()
   return {
     questie = meta("Questie", "Version"),
     questieDB = meta("QuestieDB", "Version"),
+    foreverDB = FS.ForeverVersion(),
     gathermate = gatherMate() ~= nil,
     auctionator = auctionator() ~= nil,
   }

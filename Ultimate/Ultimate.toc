@@ -23,6 +23,7 @@ Logic\ItemRelevance.lua
 Logic\Grid.lua
 Logic\ChatPlan.lua
 Logic\FlightTime.lua
+Logic\Farming.lua
 Core\Init.lua
 Core\Safe.lua
 Core\Combat.lua
@@ -36,6 +37,7 @@ Data\QuestFacts.lua
 Data\QuestTimes.lua
 Data\GearValue.lua
 Data\FlightTimes.lua
+Data\GatherNodes.lua
 Services\Nameplates.lua
 Services\Portraits.lua
 Services\UIUtil.lua
@@ -46,6 +48,7 @@ Services\Markers.lua
 Services\Sounds.lua
 Services\Alerts.lua
 Services\MinimapButton.lua
+Services\FarmSources.lua
 Modules\QuestTargeting.lua
 Modules\QuestGrades.lua
 Services\GradeSurfaces.lua
@@ -53,6 +56,7 @@ Modules\RareScanner.lua
 Modules\QuestItems.lua
 Modules\FocusedChat.lua
 Modules\FlightTimes.lua
+Modules\GoldFarming.lua
 Settings\Builder.lua
 Settings\Lists.lua
 Settings\Panel.lua

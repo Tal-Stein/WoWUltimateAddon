@@ -105,6 +105,21 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] `/reload` in the air: the bar comes back with the right time left.
 - [ ] Right-click the bar: Lock, Hide flight timer, Settings. Dragging it moves it (unlocked).
 
+## Gold Farming
+- [ ] World map's filter menu (magnifying glass) has "Ultimate > Gold Farming", checked; it turns
+      the whole feature on and off.
+- [ ] On Eastern Kingdoms / Kalimdor (with Herbalism or Mining): zones you can gather in are
+      tinted with the game's own zone highlight in their grade's color, labelled with the grade.
+- [ ] The panel at the map's bottom-left lists "Best for you" with your skill levels and the top
+      zones. Hovering a zone switches it to that zone's nodes with counts and prices.
+- [ ] With Auctionator scanned, prices are auction prices; items with no scan show the vendor
+      price marked "(vendor)". After a new scan the grades update.
+- [ ] A zone map pins every node you can gather (herb / ore tracking icons); hovering a pin shows
+      the node, its required skill and its price. Nodes above your skill aren't pinned.
+- [ ] Without a gathering profession the panel says to learn one, and nothing is tinted.
+- [ ] Right-click the panel: Hide gold farming, Settings.
+- [ ] /ult > Features > Gold Farming shows which data sources it's reading.
+
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest
       grades) starts with "Enable <feature>". Unticking it turns the feature off, greys out

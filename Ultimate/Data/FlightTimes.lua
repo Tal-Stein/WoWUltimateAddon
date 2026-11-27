@@ -7,6 +7,7 @@ local ADDON, ns = ...
 -- Data from RestedXP Guides (RXPGuides/DB/forever/flightData.lua), https://www.restedxp.com,
 -- licensed CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). Converted to
 -- this layout by scripts/import_flight_times.py; this file is shared under the same license.
+-- Source commit 2d3ca13dff5d (2026-11-17T15:00:04Z).
 ns.FlightTimesData = {
   Alliance = {
     -- Stormwind, Elwynn

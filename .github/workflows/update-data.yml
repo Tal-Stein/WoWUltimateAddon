@@ -1,0 +1,33 @@
+# Keeps the data Ultimate ships current. Weekly (and on demand), re-imports RestedXP's Forever
+# flight times; when they changed, runs the tests and opens a pull request with the update.
+# Data read at runtime (Questie, GatherMate2, Auctionator) needs nothing here: updating those
+# add-ons updates Ultimate's map.
+name: Update shipped data
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install lupa
+      - run: python scripts/import_flight_times.py --latest
+      - run: python tests/run.py
+      - run: python scripts/check.py
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: data/flight-times
+          title: "data: update flight times from RestedXP"
+          commit-message: "data: update flight times from RestedXP"
+          body: "Weekly re-import of RXPGuides/DB/forever/flightData.lua by scripts/import_flight_times.py --latest."

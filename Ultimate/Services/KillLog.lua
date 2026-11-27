@@ -4,9 +4,11 @@ local ADDON, ns = ...
 -- UltimateDB.farmMobs:
 --   { kills, copper, items = { [itemID] = qty }, skinned, skins = { [itemID] = qty }, maps = { [uiMapID] = kills } }
 -- A kill is any corpse you loot, a PARTY_KILL of yours in the combat log (when the game allows it),
--- or a mob you tagged dying as your target or with its nameplate up; each counts once per GUID.
+-- or a mob you fought (on your or your pet's threat list) dying as your target or under its
+-- nameplate; each counts once per GUID.
 -- Coin and items come from the loot window's own sources (GetLootSourceInfo), so area loot is
--- split correctly. Loot right after your Skinning cast counts as skinning. Your pace (seconds
+-- split correctly. Loot right after you start a Skinning cast counts as skinning; after Pick
+-- Pocket it's ignored (casts are noted when sent, before their loot window opens). Your pace (seconds
 -- between kills, breaks over BREAK seconds left out) is kept per character for gold per hour.
 local KL = {}
 ns.KillLog = KL
@@ -14,11 +16,12 @@ ns.KillLog = KL
 local BREAK = 90         -- seconds; longer gaps between kills aren't farming
 local CAST_WINDOW = 3    -- seconds between a gathering cast and its loot window
 local PICK_POCKET = 921
-local SEEN_LIMIT = 5000  -- GUIDs remembered per session before starting over
+local SEEN_LIMIT = 5000  -- GUIDs remembered per set before starting it over
+local WINDOW_RESET = 2   -- seconds after which a loot window that never closed stops blocking
 
-local seen, looted, skinned = {}, {}, {}
-local seenCount = 0
-local lastKill, lastCast, windowDone
+local seen, looted, skinned, fought = {}, {}, {}, {}
+local sizes = {}
+local lastKill, lastCast, windowAt
 
 local function on() return ns.db.farming and ns.db.farming.recordKills ~= false end
 local function read(fn, ...) return ns.Safe.read(fn, ...) end
@@ -46,10 +49,13 @@ local function stat(npcID)
   return s
 end
 
+-- Each set starts over on its own when full, so a reset of `seen` never forgets which corpses
+-- were already looted.
 local function remember(set, guid)
-  if seenCount > SEEN_LIMIT then wipe(seen); wipe(looted); wipe(skinned); seenCount = 0 end
+  if set[guid] then return end
+  sizes[set] = (sizes[set] or 0) + 1
+  if sizes[set] > SEEN_LIMIT then wipe(set); sizes[set] = 1 end
   set[guid] = true
-  seenCount = seenCount + 1
 end
 
 -- Count one kill of the creature `guid` (once per GUID).
@@ -68,6 +74,7 @@ function KL.RecordKill(guid)
     pace.sum, pace.n = pace.sum + (now - lastKill), pace.n + 1
   end
   lastKill = now
+  ns:Fire("ULT_FARM_DATA")
 end
 
 local function skinningName()
@@ -95,8 +102,10 @@ local function itemID(link)
 end
 
 function KL.OnLoot()
-  if windowDone or not on() then return end
-  windowDone = true
+  if not on() then return end
+  -- One window fires LOOT_READY and LOOT_OPENED; a window that never closed stops blocking.
+  if windowAt and GetTime() - windowAt < WINDOW_RESET then return end
+  windowAt = GetTime()
   local kind = windowKind()
   lastCast = nil
   if not kind then return end
@@ -132,6 +141,7 @@ function KL.OnLoot()
       remember(looted, guid)
     end
   end
+  if next(counted) then ns:Fire("ULT_FARM_DATA") end
 end
 
 local function onCombatLog()
@@ -141,21 +151,34 @@ local function onCombatLog()
   if source == read(UnitGUID, "player") or source == read(UnitGUID, "pet") then KL.RecordKill(dest) end
 end
 
--- A mob you tagged, dead as your target or under its nameplate.
+local function onThreatList(unit)
+  if not UnitThreatSituation then return false end
+  return read(UnitThreatSituation, "player", unit) ~= nil or read(UnitThreatSituation, "pet", unit) ~= nil
+end
+
+-- Mobs you fight are noted while alive (on your or your pet's threat list); one of them dead as
+-- your target or under its nameplate is a kill. Mobs others killed never were on your list.
 local function onHealth(_, unit)
   if type(unit) ~= "string" or not (unit == "target" or unit:find("^nameplate%d")) then return end
-  if read(UnitIsDead, unit) and not read(UnitIsTapDenied, unit) and read(UnitCanAttack, "player", unit) then
-    KL.RecordKill(read(UnitGUID, unit))
+  local guid = read(UnitGUID, unit)
+  if not guid or not ns.Units.npcIdFromGuid(guid) then return end
+  if read(UnitIsDead, unit) then
+    if fought[guid] and not read(UnitIsTapDenied, unit) then KL.RecordKill(guid) end
+  elseif onThreatList(unit) then
+    remember(fought, guid)
   end
 end
 
 function KL.Start()
   ns:On("LOOT_READY", KL, function() KL.OnLoot() end)
   ns:On("LOOT_OPENED", KL, function() KL.OnLoot() end)
-  ns:On("LOOT_CLOSED", KL, function() windowDone = false end)
-  ns:On("UNIT_SPELLCAST_SUCCEEDED", KL, function(_, unit, _, spellID)
-    if unit == "player" then lastCast = { spellID = spellID, at = GetTime() } end
-  end)
+  ns:On("LOOT_CLOSED", KL, function() windowAt = nil end)
+  -- Casts are noted as early as possible: a Pick Pocket or Skinning loot window can open before
+  -- UNIT_SPELLCAST_SUCCEEDED arrives.
+  local function cast(spellID) lastCast = { spellID = spellID, at = GetTime() } end
+  ns:On("UNIT_SPELLCAST_SENT", KL, function(_, unit, _, _, spellID) if unit == "player" then cast(spellID) end end)
+  ns:On("UNIT_SPELLCAST_START", KL, function(_, unit, _, spellID) if unit == "player" then cast(spellID) end end)
+  ns:On("UNIT_SPELLCAST_SUCCEEDED", KL, function(_, unit, _, spellID) if unit == "player" then cast(spellID) end end)
   -- The combat log may be closed to add-ons (C_CombatLog.IsCombatLogRestricted); kills still
   -- count from loot, targets and nameplates then.
   local restricted = C_CombatLog and C_CombatLog.IsCombatLogRestricted and read(C_CombatLog.IsCombatLogRestricted)

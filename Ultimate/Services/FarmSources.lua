@@ -3,7 +3,9 @@ local ADDON, ns = ...
 -- Where the farming numbers come from. Everything is read at runtime from the add-ons that own
 -- it, so updating those add-ons updates the map; nothing third-party is copied into Ultimate.
 --   Professions  C_SkillInfo (the game)
---   Nodes        Questie's Forever database (required), and GatherMate2 when installed
+--   Nodes        Questie's Forever database (required); GatherMate2's only if Questie has none
+--                (GatherMate2 counts nodes you've seen, Questie every spawn point: mixing them
+--                would grade the zones you've farmed below the ones you haven't)
 --   Prices       Auctionator's scans of your realm, else the vendor price
 -- Questie's node counts are cached in UltimateDB.farmNodes under the versions they were read
 -- from, and read again when Questie, QuestieDB or Data/GatherNodes.lua changes.
@@ -64,7 +66,12 @@ local function eachQuestieSpawn(fn, onlyArea)
         if not onlyArea or area == onlyArea then
           local mapID = ns.Safe.read(zones.GetUiMapIdByAreaId, zones, area)
           if mapID and mapID > 0 then
-            for _, p in ipairs(points) do fn(name, mapID, p[1], p[2]) end
+            for _, p in ipairs(points) do
+              -- Questie marks spawns it can't place with negative coordinates.
+              if type(p[1]) == "number" and type(p[2]) == "number" and p[1] >= 0 and p[2] >= 0 then
+                fn(name, mapID, p[1], p[2])
+              end
+            end
           end
         end
       end
@@ -99,53 +106,52 @@ local function gatherMate()
   return ace and ns.Safe.read(ace.GetAddon, ace, "GatherMate2", true) or nil
 end
 
--- GatherMate2's own nodes for one map and profession: { [name] = count }, or nil when it has none.
-local function gatherMateCounts(gm, mapID, prof)
-  local counts, any = {}, false
-  local ok, iter, state, start = pcall(gm.GetNodesForZone, gm, mapID, GM_TYPES[prof], true)
-  if not ok or type(iter) ~= "function" then return nil end
-  for _, nodeID in iter, state, start do
-    local name = ns.Safe.read(gm.GetNameForNode, gm, GM_TYPES[prof], nodeID)
-    local node = name and ns.GatherNodes[name]
-    if node and node.prof == prof then
-      counts[name] = (counts[name] or 0) + 1
-      any = true
-    end
-  end
-  return any and counts or nil
-end
-
--- { [uiMapID] = { [node name] = count } }
-function FS.Zones()
-  local base = questieCounts()
-  local gm = gatherMate()
-  if not gm then return base end
+-- GatherMate2's nodes on every zone map: { [uiMapID] = { [name] = count } }.
+local function gatherMateZones(gm)
   local zones = {}
-  for mapID, counts in pairs(base) do
-    local merged = {}
-    for prof in pairs(GM_TYPES) do
-      local own = gatherMateCounts(gm, mapID, prof)
-      for name, n in pairs(own or counts) do
-        if ns.GatherNodes[name].prof == prof then merged[name] = n end
+  local types = Enum and Enum.UIMapType
+  local all = C_Map and ns.Safe.read(C_Map.GetMapChildrenInfo, 947, types and types.Zone or 3, true) or {}
+  for _, info in ipairs(all) do
+    for prof, nodeType in pairs(GM_TYPES) do
+      local ok, iter, state, start = pcall(gm.GetNodesForZone, gm, info.mapID, nodeType, true)
+      if ok and type(iter) == "function" then
+        for _, nodeID in iter, state, start do
+          local name = ns.Safe.read(gm.GetNameForNode, gm, nodeType, nodeID)
+          local node = name and ns.GatherNodes[name]
+          if node and node.prof == prof then
+            zones[info.mapID] = zones[info.mapID] or {}
+            zones[info.mapID][name] = (zones[info.mapID][name] or 0) + 1
+          end
+        end
       end
     end
-    for name, n in pairs(counts) do
-      if not GM_TYPES[ns.GatherNodes[name].prof] then merged[name] = n end
-    end
-    zones[mapID] = merged
   end
   return zones
 end
 
--- Node positions on one map, for its pins: { { name, x, y } } with x, y in 0-1.
+-- { [uiMapID] = { [node name] = count } }: Questie's, else GatherMate2's.
+function FS.Zones()
+  local base = questieCounts()
+  if next(base) then return base end
+  local gm = gatherMate()
+  return gm and gatherMateZones(gm) or base
+end
+
+-- Node positions on one map, for its pins: { { name, x, y } } with x, y in 0-1. Kept per map
+-- until the sources change.
+local spawnCache = {}
 function FS.Spawns(mapID)
+  local key = FS.SourceKey()
+  if spawnCache.key ~= key then spawnCache = { key = key } end
+  if spawnCache[mapID] then return spawnCache[mapID] end
   local zones = zoneDB()
   local area = zones and ns.Safe.read(zones.GetAreaIdByUiMapId, zones, mapID)
   local list = {}
   if not area then return list end
   eachQuestieSpawn(function(name, m, x, y)
-    if m == mapID and x and y then list[#list + 1] = { name = name, x = x / 100, y = y / 100 } end
+    if m == mapID then list[#list + 1] = { name = name, x = x / 100, y = y / 100 } end
   end, area)
+  if #list > 0 then spawnCache[mapID] = list end
   return list
 end
 
@@ -154,11 +160,19 @@ end
 ------------------------------------------------------------------------------
 local ABOVE_LEVEL = 3 -- mobs further above you than this aren't farming
 local mobSpawns = {}  -- [npcID] = { [uiMapID] = spawns }, per session
+local npcFields = {}  -- [npcID] = { name, rank, minLevel }, per session
 
 local function npc(id, field)
   local lib = LibQuestieDB
   if type(lib) ~= "table" or type(lib.Npc) ~= "table" then return nil end
-  return ns.Safe.read(lib.Npc.Get, id, field)
+  if field == "spawns" then return ns.Safe.read(lib.Npc.Get, id, field) end
+  local f = npcFields[id]
+  if not f then
+    f = { name = ns.Safe.read(lib.Npc.Get, id, "name"), rank = ns.Safe.read(lib.Npc.Get, id, "rank"),
+      minLevel = ns.Safe.read(lib.Npc.Get, id, "minLevel") }
+    npcFields[id] = f
+  end
+  return f[field]
 end
 
 local function spawnsByMap(npcID)

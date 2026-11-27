@@ -100,12 +100,20 @@ end
 
 local function view() return o().view or "best" end
 
+-- Scores are worked out again only after something they depend on changed (G.Invalidate: map
+-- opened, skills, prices, kills, settings); browsing the map just redraws.
+G.dirty = true
+function G.Invalidate() G.dirty = true end
+
 function G.Score()
-  G.skills = FS.Skills()
-  G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
-    o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
-  G.byMap = {}
-  for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
+  if G.dirty or not G.scores then
+    G.dirty = false
+    G.skills = FS.Skills()
+    G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
+      o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
+    G.byMap = {}
+    for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
+  end
   G.viewList = FM.View(G.scores, view(), viewContext())
   G.inView = {}
   for _, z in ipairs(G.viewList) do G.inView[z.mapID] = z end
@@ -234,31 +242,58 @@ function G.CheckGoal()
   G.RenderPanel()
 end
 
-local function goalDialog()
-  if type(StaticPopupDialogs) ~= "table" then return nil end
-  StaticPopupDialogs.ULTIMATE_FARM_GOAL = StaticPopupDialogs.ULTIMATE_FARM_GOAL or {
-    text = L.FARM_GOAL_PROMPT,
-    button1 = ACCEPT or "Accept",
-    button2 = CANCEL or "Cancel",
-    hasMoneyInputFrame = 1,
-    OnAccept = function(dialog)
-      local box = dialog and (dialog.MoneyInputFrame or dialog.moneyInputFrame)
-      local copper = box and MoneyInputFrame_GetCopper and ns.Safe.read(MoneyInputFrame_GetCopper, box)
-      if type(UltimateCharDB) == "table" and type(copper) == "number" and copper > 0 then
-        UltimateCharDB.farmGoal = copper
-        G.CheckGoal()
-      end
-    end,
-    timeout = 0,
-    whileDead = 1,
-    hideOnEscape = 1,
-  }
-  return "ULTIMATE_FARM_GOAL"
+function G.AcceptGoal(copper)
+  if type(UltimateCharDB) ~= "table" or type(copper) ~= "number" or copper <= 0 then return end
+  if copper <= (ns.Safe.read(GetMoney) or 0) then
+    ns:Print(L.FARM_GOAL_ALREADY)
+    return
+  end
+  UltimateCharDB.farmGoal = copper
+  G.RenderPanel()
+end
+
+-- Our own small dialog with the game's money box (writing StaticPopupDialogs taints the shared
+-- popups). Enter accepts, Escape closes.
+local function goalFrame()
+  if G.goalFrame then return G.goalFrame end
+  local f = CreateFrame("Frame", "UltimateFarmGoalFrame", UIParent, "TooltipBackdropTemplate")
+  f:SetSize(280, 108)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 140)
+  f:SetFrameStrata("DIALOG")
+  f:EnableMouse(true)
+  f.text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+  f.text:SetPoint("TOP", f, "TOP", 0, -16)
+  f.text:SetText(L.FARM_GOAL_PROMPT)
+  f.money = CreateFrame("Frame", "UltimateFarmGoalMoney", f, "MoneyInputFrameTemplate")
+  f.money:SetPoint("TOP", f.text, "BOTTOM", 12, -12)
+  local function accept()
+    G.AcceptGoal(MoneyInputFrame_GetCopper and ns.Safe.read(MoneyInputFrame_GetCopper, f.money))
+    f:Hide()
+  end
+  f.ok = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  f.ok:SetSize(110, 22)
+  f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -4, 14)
+  f.ok:SetText(ACCEPT or "Accept")
+  f.ok:SetScript("OnClick", accept)
+  f.cancel = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  f.cancel:SetSize(110, 22)
+  f.cancel:SetPoint("BOTTOMLEFT", f, "BOTTOM", 4, 14)
+  f.cancel:SetText(CANCEL or "Cancel")
+  f.cancel:SetScript("OnClick", function() f:Hide() end)
+  for _, key in ipairs({ "gold", "silver", "copper" }) do
+    local box = f.money[key]
+    if box and box.HookScript then box:HookScript("OnEnterPressed", accept) end
+  end
+  if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "UltimateFarmGoalFrame") end
+  f:Hide()
+  G.goalFrame = f
+  return f
 end
 
 function G.SetGoal()
-  local name = goalDialog()
-  if name and StaticPopup_Show then StaticPopup_Show(name) end
+  local f = goalFrame()
+  if MoneyInputFrame_ResetMoney then pcall(MoneyInputFrame_ResetMoney, f.money) end
+  f:Show()
 end
 
 function G.RenderPanel()
@@ -524,7 +559,7 @@ function G.Attach()
   overlay:SetScript("OnSizeChanged", function() G.Refresh() end)
   G.panel = buildPanel(WorldMapFrame.ScrollContainer or WorldMapFrame)
   hooksecurefunc(WorldMapFrame, "OnMapChanged", function() G.Refresh() end)
-  WorldMapFrame:HookScript("OnShow", function() G.Refresh() end)
+  WorldMapFrame:HookScript("OnShow", function() G.Invalidate(); G.Refresh() end)
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
   G.Refresh()
 end
@@ -578,12 +613,13 @@ G.def = ns.Modules:Register({
     installTooltip()
     if not pricesHooked then
       pricesHooked = true
-      FS.OnPricesChanged(function() G.Refresh() end)
+      FS.OnPricesChanged(function() G.Invalidate(); G.Refresh() end)
     end
-    ns:On("SKILL_LINES_CHANGED", G, function() G.Refresh() end)
+    ns:On("SKILL_LINES_CHANGED", G, function() G.Invalidate(); G.Refresh() end)
+    ns:On("ULT_FARM_DATA", G, function() G.Invalidate() end)
     ns:On("PLAYER_MONEY", G, function() G.CheckGoal() end)
     ns:On("ULT_SETTING_CHANGED", G, function(_, path)
-      if path and path:find("^farming") then G.Refresh() end
+      if path and path:find("^farming") then G.Invalidate(); G.Refresh() end
     end)
     ns:On("ADDON_LOADED", G, function(_, name) if name == "Blizzard_WorldMap" then G.Attach() end end)
     G.Attach()

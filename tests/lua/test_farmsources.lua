@@ -5,7 +5,7 @@ local ns = __ns
 local OBJECTS = {
   [1731] = { [12] = { { 10, 20 }, { 30, 40 } } },
   [103713] = { [12] = { { 50, 60 } } },
-  [1618] = { [12] = { { 1, 2 } }, [40] = { { 5, 5 }, { 6, 6 }, { 7, 7 } } },
+  [1618] = { [12] = { { 1, 2 }, { -1, -1 } }, [40] = { { 5, 5 }, { 6, 6 }, { 7, 7 } } },
 }
 local IDS = { ["Copper Vein"] = { 1731, 103713 }, ["Peacebloom"] = { 1618 } }
 local lookups = 0
@@ -90,7 +90,7 @@ describe("Node counts from Questie's Forever database", function()
 end)
 
 describe("Node counts from GatherMate2", function()
-  it("replaces Questie's counts for a map and node type GatherMate2 knows", function()
+  it("are used only when Questie has none", function()
     local gm = {
       GetNodesForZone = function(_, mapID, nodeType)
         local t = {}
@@ -101,11 +101,15 @@ describe("Node counts from GatherMate2", function()
     }
     LibStub = function() return { GetAddon = function(_, name) if name == "GatherMate2" then return gm end end } end
     versions.GatherMate2 = "1.0"
-    local zones = FS.Zones()
-    assertEq(zones[1429]["Copper Vein"], 2, "GatherMate2's own count")
-    assertEq(zones[1429]["Peacebloom"], 1, "herbs still from Questie")
+    C_Map = { GetMapChildrenInfo = function() return { { mapID = 1429 }, { mapID = 1436 } } end }
+    assertEq(FS.Zones()[1429]["Copper Vein"], 3, "Questie's spawn points win")
+    local savedIDs, savedCache = IDS, UltimateDB.farmNodes
+    IDS, UltimateDB.farmNodes = {}, nil
+    assertEq(FS.Zones(), { [1429] = { ["Copper Vein"] = 2 } })
+    IDS, UltimateDB.farmNodes = savedIDs, savedCache
     LibStub = nil
     versions.GatherMate2 = nil
+    C_Map = nil
   end)
 end)
 

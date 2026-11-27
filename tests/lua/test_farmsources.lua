@@ -105,7 +105,30 @@ describe("Node counts from Questie's Forever database", function()
 end)
 
 describe("Node counts from GatherMate2", function()
-  it("are used only when Questie has none", function()
+  it("are used when they cover more nodes than Questie (GatherMate2_Data imported)", function()
+    local gm = {
+      GetNodesForZone = function(_, mapID, nodeType)
+        local t = {}
+        if mapID == 1436 and nodeType == "Mining" then for i = 1, 9 do t[i * 100] = 1 end end
+        return pairs(t)
+      end,
+      GetNameForNode = function(_, nodeType, id) if nodeType == "Mining" and id == 1 then return "Copper Vein" end end,
+    }
+    LibStub = function() return { GetAddon = function(_, name) if name == "GatherMate2" then return gm end end } end
+    versions.GatherMate2 = "1.0"
+    C_Map = { GetMapChildrenInfo = function() return { { mapID = 1429 }, { mapID = 1436 } } end }
+    function gm:DecodeLoc(coord) return coord / 1000, 0.5 end
+    local zones, source = FS.Zones()
+    assertEq(source, "gathermate")
+    assertEq(zones, { [1436] = { ["Copper Vein"] = 9 } })
+    local pins = FS.Spawns(1436)
+    assertEq(#pins, 9, "pins from the same source")
+    assertEq(pins[1].name, "Copper Vein")
+    LibStub = nil
+    versions.GatherMate2 = nil
+    C_Map = nil
+  end)
+  it("are used only when Questie has fewer", function()
     local gm = {
       GetNodesForZone = function(_, mapID, nodeType)
         local t = {}

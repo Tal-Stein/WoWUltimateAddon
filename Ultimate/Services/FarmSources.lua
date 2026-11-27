@@ -3,9 +3,8 @@ local ADDON, ns = ...
 -- Where the farming numbers come from. Everything is read at runtime from the add-ons that own
 -- it, so updating those add-ons updates the map; nothing third-party is copied into Ultimate.
 --   Professions  C_SkillInfo (the game)
---   Nodes        Questie's Forever database (required); GatherMate2's only if Questie has none
---                (GatherMate2 counts nodes you've seen, Questie every spawn point: mixing them
---                would grade the zones you've farmed below the ones you haven't)
+--   Nodes        GatherMate2 (with GatherMate2_Data) or Questie's Forever database, whichever
+--                covers more (see FS.Zones)
 --   Prices       Auctionator's scans of your realm, else the vendor price
 -- Questie's node counts are cached in UltimateDB.farmNodes under the versions they were read
 -- from, and read again when Questie, QuestieDB or Data/GatherNodes.lua changes.
@@ -138,23 +137,53 @@ local function gatherMateZones(gm)
   return zones
 end
 
--- { [uiMapID] = { [node name] = count } }: Questie's, else GatherMate2's; and which ("questie",
--- "gathermate" or "none").
+-- { [uiMapID] = { [node name] = count } } and where it came from ("questie", "gathermate" or
+-- "none"): whichever source covers more nodes. Questie's database only holds the nodes quests
+-- use (on Forever: no Iron, Mithril or Thorium at all); GatherMate2 with GatherMate2_Data
+-- imported holds them all. One source at a time: mixing would skew zones against each other.
+local function total(zones)
+  local n = 0
+  for _, counts in pairs(zones) do for _, c in pairs(counts) do n = n + c end end
+  return n
+end
+
 function FS.Zones()
   local base = questieCounts()
-  if next(base) then return base, "questie" end
   local gm = gatherMate()
   if gm then
     local zones = gatherMateZones(gm)
-    if next(zones) then return zones, "gathermate" end
+    if total(zones) > total(base) then FS.source = "gathermate"; return zones, FS.source end
   end
-  return base, "none"
+  FS.source = next(base) and "questie" or "none"
+  return base, FS.source
 end
 
 -- Node positions on one map, for its pins: { { name, x, y } } with x, y in 0-1. Kept per map
 -- until the sources change.
 local spawnCache = {}
+local function gatherMateSpawns(gm, mapID)
+  local list = {}
+  for prof, nodeType in pairs(GM_TYPES) do
+    local ok, iter, state, start = pcall(gm.GetNodesForZone, gm, mapID, nodeType, true)
+    if ok and type(iter) == "function" then
+      for coord, nodeID in iter, state, start do
+        local name = ns.Safe.read(gm.GetNameForNode, gm, nodeType, nodeID)
+        local node = name and ns.GatherNodes[name]
+        if node and node.prof == prof then
+          local okd, x, y = pcall(gm.DecodeLoc, gm, coord)
+          if okd and type(x) == "number" and type(y) == "number" then
+            list[#list + 1] = { name = name, x = x, y = y }
+          end
+        end
+      end
+    end
+  end
+  return list
+end
+
 function FS.Spawns(mapID)
+  local source = FS.source or select(2, FS.Zones()) -- decided by the last FS.Zones
+  if source == "gathermate" then return gatherMateSpawns(gatherMate(), mapID) end
   local key = FS.SourceKey()
   if spawnCache.key ~= key then spawnCache = { key = key } end
   if spawnCache[mapID] then return spawnCache[mapID] end

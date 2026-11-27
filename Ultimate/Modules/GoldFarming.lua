@@ -659,6 +659,7 @@ G.def = ns.Modules:Register({
   defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best" },
   OnEnable = function()
     ns.KillLog.Start()
+    FS.Prepare()
     installMapMenu()
     installTooltip()
     if not pricesHooked then

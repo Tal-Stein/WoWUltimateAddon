@@ -3,7 +3,10 @@ local L = ns.L
 local FM = ns.Farming
 local FS = ns.FarmSources
 
--- Gold Farming: grades zones on the world map by what your gathering professions earn there.
+-- Gold Farming: grades zones on the world map for farming, through one of two lenses:
+--   Mobs       how many non-elite hostile mobs at your level live in each zone (Questie's Forever
+--              spawns), with the gold per kill your own kills have recorded for each
+--   Gathering  what your herbalism/mining nodes there are worth at auction (plus farmed mobs)
 --   Continent maps  each zone you can gather in is tinted with the game's own zone highlight in
 --                   its grade's color; a panel beside the map lists the best zones for you and
 --                   details the zone under the cursor.
@@ -99,6 +102,8 @@ local function viewContext()
 end
 
 local function view() return o().view or "best" end
+local function lens() return o().lens or "mobs" end
+G.LENSES = { "mobs", "gathering" }
 
 -- Scores are worked out again only after something they depend on changed (G.Invalidate: map
 -- opened, skills, prices, kills, settings); browsing the map just redraws.
@@ -109,8 +114,19 @@ function G.Score()
   if G.dirty or not G.scores then
     G.dirty = false
     G.skills = FS.Skills()
-    G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
-      o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
+    G.building = false
+    if lens() == "mobs" then
+      local index, levels = FS.MobIndex()
+      if index then
+        G.scores = FM.MobZones(index, levels, ns.Safe.read(UnitLevel, "player") or 1,
+          FS.Mobs(G.skills).values, FS.NpcName, area)
+      else
+        G.scores, G.building = {}, true
+      end
+    else
+      G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
+        o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
+    end
     G.byMap = {}
     for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
   end
@@ -140,7 +156,15 @@ end
 G.MobValueText = mobValueText
 
 local function entryLine(e)
-  if e.kind == "mob" then return e.name .. "  " .. mobValueText(e.price, e.kills) end
+  if e.kind == "mob" then
+    local text = (e.name or "?")
+    if e.minLevel then
+      text = text .. string.format(e.minLevel == e.maxLevel and " (%d)" or " (%d-%d)", e.minLevel, e.maxLevel)
+      text = text .. "  |cff808080" .. string.format(L.FARM_HERE_COUNT, e.count) .. "|r"
+    end
+    if e.price then return text .. "  " .. mobValueText(e.price, e.kills) end
+    return text .. "  |cff808080" .. L.FARM_NOT_FARMED .. "|r"
+  end
   local text = string.format(L.FARM_NODE_COUNT, e.count, e.name)
   if e.status == "unknown" then
     text = text .. "  |cff808080(" .. L.FARM_SKILL_UNKNOWN .. ")|r"
@@ -161,7 +185,10 @@ end
 local function panelLines()
   local lines = {}
   local zoneID = (G.mapType == mapTypes().Zone) and G.mapID or G.hover
-  if next(G.skills) == nil and #G.scores == 0 then
+  if G.building then
+    lines[1] = L.MODULE_FARMING
+    lines[2] = L.FARM_BUILDING
+  elseif lens() == "gathering" and next(G.skills) == nil and #G.scores == 0 then
     lines[1] = L.MODULE_FARMING
     lines[2] = L.FARM_NO_PROFESSION
   elseif zoneID then
@@ -176,8 +203,8 @@ local function panelLines()
       end
     end
   else
-    lines[1] = L["FARM_VIEW_" .. view()]
-    lines[2] = profLine()
+    lines[1] = L["FARM_LENS_" .. lens()] .. ": " .. L["FARM_VIEW_" .. view()]
+    lines[2] = lens() == "mobs" and string.format(L.FARM_MOBS_SUB, ns.Safe.read(UnitLevel, "player") or 1) or profLine()
     local shown = 0
     for _, z in ipairs(G.viewList) do
       if shown >= BEST_ZONES then break end
@@ -344,6 +371,14 @@ function G.ShowMenu(owner)
   ns.Menu.Show(owner, {
     title = L.MODULE_FARMING,
     items = function(root)
+      root:CreateCheckbox(L.FARM_MAP_TOGGLE, function() return o().showOnMap and true or false end,
+        function() ns.Menu.Set("farming.showOnMap", not o().showOnMap) end)
+      root:CreateDivider()
+      for _, l in ipairs(G.LENSES) do
+        root:CreateRadio(L["FARM_LENS_" .. l], function() return lens() == l end,
+          function() ns.Menu.Set("farming.lens", l) end, l)
+      end
+      root:CreateDivider()
       for _, v in ipairs(FM.VIEWS) do
         root:CreateRadio(L["FARM_VIEW_" .. v], function() return view() == v end,
           function() ns.Menu.Set("farming.view", v) end, v)
@@ -478,7 +513,7 @@ local function pin(i)
 end
 
 local function pinZone(mapID)
-  if not o().showPins then return end
+  if not o().showPins or lens() ~= "gathering" then return end
   local z = G.byMap[mapID]
   local entries = {}
   for _, e in ipairs(z and z.entries or {}) do entries[e.name] = e end
@@ -499,6 +534,55 @@ local function pinZone(mapID)
 end
 
 ------------------------------------------------------------------------------
+-- The map button (top right of the map, styled like the minimap's tracking button):
+-- left-click turns gold farming on or off, right-click opens its menu (with Settings).
+------------------------------------------------------------------------------
+function G.BuildButton(parent)
+  local b = CreateFrame("Button", "UltimateFarmMapButton", parent)
+  b:SetSize(32, 32)
+  b:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -6, -6)
+  local level = parent.GetFrameLevel and parent:GetFrameLevel()
+  if type(level) == "number" then b:SetFrameLevel(level + 110) end
+  b.bg = b:CreateTexture(nil, "BACKGROUND")
+  b.bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+  b.bg:SetSize(25, 25)
+  b.bg:SetPoint("CENTER", b, "CENTER", 0, 0)
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_02")
+  b.icon:SetSize(20, 20)
+  b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+  b.border = b:CreateTexture(nil, "OVERLAY")
+  b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  b.border:SetSize(54, 54)
+  b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+  b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+  b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  b:SetScript("OnClick", function(self, button)
+    if button == "RightButton" then
+      G.ShowMenu(self)
+    else
+      ns.Menu.Set("farming.showOnMap", not o().showOnMap)
+    end
+  end)
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText(L.MODULE_FARMING, 1, 1, 1)
+    GameTooltip:AddLine(o().showOnMap and L.FARM_BUTTON_ON or L.FARM_BUTTON_OFF, 1, 0.82, 0)
+    GameTooltip:AddLine(L.FARM_BUTTON_HINT, 0.5, 0.5, 0.5)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  return b
+end
+
+function G.UpdateButton()
+  local b = G.button
+  if not b then return end
+  b:SetShown(ns.Modules:IsActive("farming"))
+  b.icon:SetDesaturated(not o().showOnMap)
+end
+
+------------------------------------------------------------------------------
 -- Refresh
 ------------------------------------------------------------------------------
 local function clear()
@@ -511,6 +595,7 @@ function G.Refresh()
   if not G.attached then return end
   clear()
   G.hover = nil
+  G.UpdateButton()
   if not active() or not WorldMapFrame:IsShown() then
     if G.panel then G.panel:Hide() end
     return
@@ -558,6 +643,7 @@ function G.Attach()
   end)
   overlay:SetScript("OnSizeChanged", function() G.Refresh() end)
   G.panel = buildPanel(WorldMapFrame.ScrollContainer or WorldMapFrame)
+  G.button = G.BuildButton(WorldMapFrame.ScrollContainer or WorldMapFrame)
   hooksecurefunc(WorldMapFrame, "OnMapChanged", function() G.Refresh() end)
   WorldMapFrame:HookScript("OnShow", function() G.Invalidate(); G.Refresh() end)
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
@@ -656,7 +742,7 @@ G.def = ns.Modules:Register({
   key = "farming",
   name = L.MODULE_FARMING,
   description = L.MODULE_FARMING_DESC,
-  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best" },
+  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best", lens = "mobs" },
   OnEnable = function()
     ns.KillLog.Start()
     FS.Prepare()
@@ -667,7 +753,10 @@ G.def = ns.Modules:Register({
       FS.OnPricesChanged(function() G.Invalidate(); G.Refresh() end)
     end
     ns:On("SKILL_LINES_CHANGED", G, function() G.Invalidate(); G.Refresh() end)
-    ns:On("ULT_FARM_DATA", G, function() G.Invalidate() end)
+    ns:On("ULT_FARM_DATA", G, function()
+      G.Invalidate()
+      if G.attached and WorldMapFrame:IsShown() then G.Refresh() end
+    end)
     ns:On("PLAYER_MONEY", G, function() G.CheckGoal() end)
     ns:On("ULT_SETTING_CHANGED", G, function(_, path)
       if path and path:find("^farming") then G.Invalidate(); G.Refresh() end
@@ -680,6 +769,7 @@ G.def = ns.Modules:Register({
     ns.KillLog.Stop()
     ns:OffAll(G)
     G.Refresh()
+    G.UpdateButton()
   end,
 })
 
@@ -695,6 +785,9 @@ function G.def.BuildSettings(ctx)
   local views = {}
   for _, v in ipairs(FM.VIEWS) do views[#views + 1] = { value = v, label = L["FARM_VIEW_" .. v] } end
   ctx:Dropdown("farming.view", L.FARM_VIEW, views, L.FARM_VIEW_TIP)
+  local lenses = {}
+  for _, l in ipairs(G.LENSES) do lenses[#lenses + 1] = { value = l, label = L["FARM_LENS_" .. l] } end
+  ctx:Dropdown("farming.lens", L.FARM_LENS, lenses, L.FARM_LENS_TIP)
   ctx:Checkbox("farming.recordKills", L.FARM_RECORD, L.FARM_RECORD_TIP)
   ctx:Checkbox("farming.includeMobs", L.FARM_INCLUDE_MOBS, L.FARM_INCLUDE_MOBS_TIP)
   ctx:Checkbox("farming.unitTooltip", L.FARM_UNIT_TOOLTIP, L.FARM_UNIT_TOOLTIP_TIP)

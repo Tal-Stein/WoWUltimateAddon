@@ -204,3 +204,38 @@ describe("Gold goals", function()
     assertEq(FM.FormatHours(0.001), "1m")
   end)
 end)
+
+describe("Mob zones", function()
+  -- index: [mapID][npcID] = spawns; levels: [npcID] = { min, max }
+  local index = {
+    [1436] = { [116] = 40, [117] = 30, [500] = 10 },
+    [1429] = { [299] = 20 },
+    [1411] = { [3098] = 50 },
+  }
+  local levels = { [116] = { 10, 11 }, [117] = { 9, 10 }, [500] = { 30, 31 }, [299] = { 5, 6 }, [3098] = { 1, 2 } }
+  local values = { [116] = { perKill = 40, kills = 25 } }
+  local names = function(id) return ({ [116] = "Defias Bandit", [117] = "Defias Thug" })[id] or ("npc" .. id) end
+  local list = FM.MobZones(index, levels, 10, values, names)
+  local byMap = {}
+  for _, z in ipairs(list) do byMap[z.mapID] = z end
+
+  it("counts the mobs at your level that live in each zone", function()
+    assertEq(byMap[1436].value, 70)
+    assertEq(byMap[1429].value, 20, "level 5-6 still gives a level 10 experience")
+  end)
+  it("leaves out mobs far above or below you", function()
+    assertNil(byMap[1411])
+    for _, e in ipairs(byMap[1436].entries) do assertTrue(e.npcID ~= 500) end
+  end)
+  it("lists the mobs, the ones you've farmed first, with their levels and gold", function()
+    local e = byMap[1436].entries[1]
+    assertEq(e.kind, "mob")
+    assertEq(e.name, "Defias Bandit")
+    assertEq({ e.minLevel, e.maxLevel, e.count, e.price, e.kills }, { 10, 11, 40, 40, 25 })
+    assertNil(byMap[1436].entries[2].price, "not farmed yet")
+  end)
+  it("grades zones by how many mobs at your level live there", function()
+    assertEq(list[1].mapID, 1436)
+    assertEq(list[1].grade, "excellent")
+  end)
+end)

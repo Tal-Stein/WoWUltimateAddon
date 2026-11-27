@@ -184,3 +184,45 @@ function FM.FormatHours(hours)
   if h > 0 then return string.format("%dh", h) end
   return string.format("%dm", m)
 end
+
+FM.MOB_BELOW = 5 -- mobs up to this many levels below you still pay (coin, loot, some experience)
+FM.MOB_ABOVE = 3 -- and up to this many above are still safe to farm
+
+-- Zones by the mobs at your level that live there (index: { [uiMapID] = { [npcID] = spawns } },
+-- levels: { [npcID] = { min, max } } from Questie; values: { [npcID] = FM.MobValue } from your own
+-- kills; names(npcID) -> name). Graded by how many suitable mobs live there; each entry carries
+-- its gold per kill once you've farmed it (price, kills), farmed mobs listed first.
+function FM.MobZones(index, levels, level, values, names, area)
+  local list = {}
+  for mapID, mobs in pairs(index) do
+    local entries, count = {}, 0
+    for npcID, spawns in pairs(mobs) do
+      local l = levels[npcID]
+      if l and l[1] <= level + FM.MOB_ABOVE and l[2] >= level - FM.MOB_BELOW then
+        local v = values and values[npcID]
+        local known = v and v.kills >= FM.MIN_KILLS and v.perKill > 0
+        entries[#entries + 1] = { kind = "mob", npcID = npcID, name = names(npcID), count = spawns,
+          minLevel = l[1], maxLevel = l[2], price = known and v.perKill or nil,
+          kills = known and v.kills or nil, value = known and v or nil, status = "yes" }
+        count = count + spawns
+      end
+    end
+    if #entries > 0 then
+      table.sort(entries, function(a, b)
+        local va, vb = (a.price or 0) * a.count, (b.price or 0) * b.count
+        if va ~= vb then return va > vb end
+        if a.count ~= b.count then return a.count > b.count end
+        return a.npcID < b.npcID
+      end)
+      local size = area and area(mapID)
+      list[#list + 1] = { mapID = mapID, value = count, density = (size and size > 0) and count / size or count,
+        entries = entries }
+    end
+  end
+  table.sort(list, function(a, b)
+    if a.density ~= b.density then return a.density > b.density end
+    return a.mapID < b.mapID
+  end)
+  FM.Grade(list)
+  return list
+end

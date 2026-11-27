@@ -106,6 +106,12 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Right-click the bar: Lock, Hide flight timer, Settings. Dragging it moves it (unlocked).
 
 ## Gold Farming
+- [ ] A round coin button sits at the top right of the world map (minimap tracking-button look).
+      Left-click turns gold farming off (icon greys) and on; right-click: Gold Farming on/off,
+      Mobs / Gathering, the three views, gold goal, Settings.
+- [ ] Mobs lens (default): after a few seconds the panel lists zones by how many non-elite
+      hostile mobs around your level live there; hovering a zone lists its mobs with level, how
+      many live there, and "gold per kill: kill a few" until you've killed one five times.
 - [ ] World map's filter menu (magnifying glass) has "Ultimate > Gold Farming", checked; it turns
       the whole feature on and off.
 - [ ] On Eastern Kingdoms / Kalimdor (with Herbalism or Mining): zones you can gather in are

@@ -85,6 +85,8 @@ end
 function FS.Prepare()
   local objects = questieObjects()
   if objects and type(objects.BuildNameIndexAsync) == "function" then pcall(objects.BuildNameIndexAsync) end
+  -- Start reading which mobs live where once Questie has settled in.
+  if C_Timer then C_Timer.After(10, function() FS.MobIndex() end) end
 end
 
 function FS.SourceKey()
@@ -220,6 +222,88 @@ function FS.Mobs(skills)
   end
   return mobs
 end
+
+------------------------------------------------------------------------------
+-- Which mobs live where (Questie's Forever NPCs): hostile, non-elite creatures with spawns.
+-- Built a batch at a time (there are thousands of NPCs) and kept in UltimateDB.farmMobIndex under
+-- the Questie versions and your faction; ULT_FARM_DATA fires when it's ready.
+------------------------------------------------------------------------------
+local INDEX_BATCH = 300
+local AMBIENT = { [188] = true } -- critters' faction template
+local building
+
+local function factionLetter()
+  local f = ns.Safe.read(UnitFactionGroup, "player")
+  return f == "Alliance" and "A" or f == "Horde" and "H" or nil
+end
+
+local function farmable(id, letter)
+  local lib = LibQuestieDB.Npc
+  local get = function(field) return ns.Safe.read(lib.Get, id, field) end
+  if (get("rank") or 0) ~= 0 then return nil end
+  local friendly = get("friendlyToFaction")
+  if type(friendly) == "string" and letter and friendly:find(letter, 1, true) then return nil end
+  if (get("npcFlags") or 0) ~= 0 or get("questStarts") or get("questEnds") then return nil end
+  if AMBIENT[get("factionID") or 0] then return nil end
+  local lo, hi = get("minLevel"), get("maxLevel")
+  if not lo or lo <= 0 then return nil end
+  local spawns = get("spawns")
+  if type(spawns) ~= "table" or next(spawns) == nil then return nil end
+  return spawns, lo, hi or lo
+end
+
+-- index ({ [uiMapID] = { [npcID] = spawns } }), levels ({ [npcID] = { min, max } }), or nil while
+-- it's being built.
+function FS.MobIndex()
+  local g = ns.global
+  local key = FS.SourceKey() .. "|" .. tostring(factionLetter())
+  local cache = g and g.farmMobIndex
+  if cache and cache.key == key then return cache.maps, cache.levels end
+  local lib = LibQuestieDB
+  if building or type(lib) ~= "table" or type(lib.Npc) ~= "table" or type(lib.Npc.GetAllIds) ~= "function" then
+    return nil
+  end
+  local ids = ns.Safe.read(lib.Npc.GetAllIds)
+  local zones, letter = zoneDB(), factionLetter()
+  if type(ids) ~= "table" or not zones then return nil end -- Questie not ready yet
+  local maps, levels, i = {}, {}, 1
+  building = true
+  local step
+  local function batch()
+    local stop = math.min(i + INDEX_BATCH - 1, #ids)
+    for n = i, stop do
+      local id = ids[n]
+      local spawns, lo, hi = farmable(id, letter)
+      if spawns then
+        for area, points in pairs(spawns) do
+          local mapID = zones and ns.Safe.read(zones.GetUiMapIdByAreaId, zones, area)
+          if mapID and mapID > 0 and type(points) == "table" and #points > 0 then
+            maps[mapID] = maps[mapID] or {}
+            maps[mapID][id] = (maps[mapID][id] or 0) + #points
+            levels[id] = { lo, hi }
+          end
+        end
+      end
+    end
+    i = stop + 1
+    if i <= #ids then
+      C_Timer.After(0, step)
+    else
+      building = false
+      -- An empty result means Questie wasn't ready: build again next time instead of keeping it.
+      if g and next(maps) then g.farmMobIndex = { key = key, maps = maps, levels = levels } end
+      ns:Fire("ULT_FARM_DATA")
+    end
+  end
+  step = function()
+    local ok = pcall(batch)
+    if not ok then building = false end -- try again on the next request
+  end
+  C_Timer.After(0, step)
+  return nil
+end
+
+function FS.NpcName(npcID) return npc(npcID, "name") end
 
 ------------------------------------------------------------------------------
 -- Prices

@@ -22,7 +22,15 @@ local NPCS = {
   [100] = { name = "Gruff Swiftbite", minLevel = 12, maxLevel = 12, rank = 4, spawns = { [12] = { { 1, 1 } } } },
   [500] = { name = "Ogre", minLevel = 30, maxLevel = 31, rank = 0, spawns = { [40] = { { 3, 3 } } } },
 }
-LibQuestieDB.Npc = { Get = function(id, field) local n = NPCS[id]; return n and n[field] end }
+NPCS[200] = { name = "Stormwind Guard", minLevel = 55, maxLevel = 55, rank = 0, friendlyToFaction = "A", spawns = { [12] = { { 1, 1 } } } }
+NPCS[201] = { name = "Rabbit", minLevel = 1, maxLevel = 1, rank = 0, factionID = 188, spawns = { [12] = { { 1, 1 } } } }
+NPCS[202] = { name = "Kobold Vermin", minLevel = 2, maxLevel = 3, rank = 0, spawns = { [12] = { { 1, 1 }, { 2, 2 }, { 3, 3 } } } }
+NPCS[203] = { name = "Innkeeper", minLevel = 30, maxLevel = 30, rank = 0, npcFlags = 128, spawns = { [12] = { { 1, 1 } } } }
+LibQuestieDB.Npc = {
+  Get = function(id, field) local n = NPCS[id]; return n and n[field] end,
+  GetAllIds = function() local ids = {} for id in pairs(NPCS) do ids[#ids + 1] = id end table.sort(ids) return ids end,
+}
+UnitFactionGroup = function() return "Alliance" end
 UnitLevel = function() return 10 end
 local AREA = { [12] = 1429, [40] = 1436 }
 QuestieLoader = { _modules = { ZoneDB = {
@@ -136,6 +144,25 @@ describe("Mobs you've killed", function()
     local mobs = FS.Mobs({})
     assertNil(mobs.zones[1429])
     assertNil(mobs.values[500])
+  end)
+end)
+
+describe("Which mobs live where", function()
+  it("is built from Questie a few at a time, then kept", function()
+    assertNil(FS.MobIndex(), "still building")
+    __advance(1, true)
+    local index, levels = FS.MobIndex()
+    assertEq(index[1429][202], 3)
+    assertEq(index[1436][116], 2)
+    assertEq(levels[202], { 2, 3 })
+    assertEq(UltimateDB.farmMobIndex.maps[1429][202], 3)
+  end)
+  it("leaves out friendly NPCs, critters, townsfolk and elites", function()
+    local index = FS.MobIndex()
+    assertNil(index[1429][200])
+    assertNil(index[1429][201])
+    assertNil(index[1429][203])
+    assertNil(index[1429][100])
   end)
 end)
 

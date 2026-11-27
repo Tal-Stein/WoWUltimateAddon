@@ -43,6 +43,7 @@ local menuMods = {}
 Menu = { ModifyMenu = function(tag, fn) menuMods[tag] = fn end }
 
 __boot(nil, {})
+ns.db.farming.lens = "gathering" -- the gathering lens first; the mobs lens has its own tests below
 local G = ns.GoldFarming
 local FS = ns.FarmSources
 FS.Zones = function()
@@ -312,5 +313,68 @@ describe("/ult farm", function()
     assertTrue(text:find("Copper Vein", 1, true) ~= nil, text)
     assertTrue(text:find("12 kills", 1, true) ~= nil, text)
     assertTrue(text:find("Auctionator", 1, true) ~= nil, text)
+  end)
+end)
+
+describe("Gold farming map button", function()
+  it("sits on the map, and left-click turns gold farming off and on", function()
+    local b = G.button
+    assertTrue(b.shown)
+    b:GetScript("OnClick")(b, "LeftButton")
+    assertFalse(ns.db.farming.showOnMap)
+    assertTrue(b.shown, "still there to turn it back on")
+    assertTrue(b.icon.desaturated)
+    b:GetScript("OnClick")(b, "LeftButton")
+    assertTrue(ns.db.farming.showOnMap)
+  end)
+  it("right-click: on/off, lenses, views, settings", function()
+    local b = G.button
+    b:GetScript("OnClick")(b, "RightButton")
+    assertTrue(__menuEntry(ns.L.FARM_MAP_TOGGLE) ~= nil)
+    assertTrue(__menuEntry(ns.L.FARM_LENS_mobs) ~= nil)
+    assertTrue(__menuEntry(ns.L.FARM_LENS_gathering) ~= nil)
+    assertTrue(__menuEntry(ns.L.FARM_VIEW_near) ~= nil)
+    assertTrue(__menuEntry(ns.L.OPEN_SETTINGS) ~= nil)
+  end)
+end)
+
+describe("Mobs lens", function()
+  local index = { [1436] = { [116] = 40, [117] = 12 }, [1429] = { [299] = 8 } }
+  local levels = { [116] = { 10, 11 }, [117] = { 9, 10 }, [299] = { 5, 6 } }
+  local ready = false
+  FS.MobIndex = function() if ready then return index, levels end end
+  FS.NpcName = function(id) return ({ [116] = "Defias Bandit", [117] = "Defias Thug", [299] = "Kobold Miner" })[id] end
+
+  it("is the default for a new character", function()
+    assertEq(G.def.defaults.lens, "mobs")
+  end)
+  it("says it's reading Questie while the mob list is being built", function()
+    UnitLevel = function() return 10 end
+    ns.Menu.Set("farming.lens", "mobs")
+    ns.Menu.Set("farming.view", "best")
+    open(1415)
+    assertTrue(panelText():find(ns.L.FARM_BUILDING, 1, true) ~= nil, panelText())
+  end)
+  it("grades zones by the mobs at your level once it's ready", function()
+    ready = true
+    ns:Fire("ULT_FARM_DATA")
+    local text = panelText()
+    assertTrue(text:find(ns.L.FARM_LENS_mobs, 1, true) ~= nil, text)
+    assertTrue(text:find("Westfall", 1, true) < text:find("Elwynn Forest", 1, true), text)
+    local byTex = {}
+    for _, t in ipairs(shownHighlights()) do byTex[t.texture] = t end
+    assertEq(byTex[2436].vertexColor, G.COLORS.excellent)
+  end)
+  it("lists a zone's mobs with level, count and gold per kill once farmed", function()
+    open(1436)
+    local text = panelText()
+    assertTrue(text:find("Defias Bandit (10-11)", 1, true) ~= nil, text)
+    assertTrue(text:find("40 here", 1, true) ~= nil, text)
+    assertTrue(text:find("50c per kill", 1, true) ~= nil, text)
+    assertTrue(text:find("Defias Thug (9-10)", 1, true) ~= nil, text)
+    assertTrue(text:find(ns.L.FARM_NOT_FARMED, 1, true) ~= nil, text)
+  end)
+  it("doesn't pin gathering nodes", function()
+    assertEq(#shownPins(), 0)
   end)
 end)

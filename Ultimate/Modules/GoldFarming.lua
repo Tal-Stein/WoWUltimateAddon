@@ -100,12 +100,20 @@ end
 
 local function view() return o().view or "best" end
 
+-- Scores are worked out again only after something they depend on changed (G.Invalidate: map
+-- opened, skills, prices, kills, settings); browsing the map just redraws.
+G.dirty = true
+function G.Invalidate() G.dirty = true end
+
 function G.Score()
-  G.skills = FS.Skills()
-  G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
-    o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
-  G.byMap = {}
-  for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
+  if G.dirty or not G.scores then
+    G.dirty = false
+    G.skills = FS.Skills()
+    G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
+      o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
+    G.byMap = {}
+    for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
+  end
   G.viewList = FM.View(G.scores, view(), viewContext())
   G.inView = {}
   for _, z in ipairs(G.viewList) do G.inView[z.mapID] = z end
@@ -194,11 +202,107 @@ local function panelLines()
   return lines
 end
 
+------------------------------------------------------------------------------
+-- Gold goal (per character, UltimateCharDB.farmGoal in copper)
+------------------------------------------------------------------------------
+local function goal() return type(UltimateCharDB) == "table" and UltimateCharDB.farmGoal or nil end
+
+-- Your best timed rate among the mobs on show: copper per hour and the mob's name.
+local function bestRate(zones)
+  local best, name
+  for _, z in ipairs(zones) do
+    for _, e in ipairs(z.entries or {}) do
+      local h = e.kind == "mob" and FM.PerHour(e.price, ns.KillLog.Pace())
+      if h and (not best or h > best) then best, name = h, e.name end
+    end
+  end
+  return best, name
+end
+
+local function goalLine()
+  local target = goal()
+  if not target then return nil end
+  local zoneID = (G.mapType == mapTypes().Zone) and G.mapID or G.hover
+  local zones = zoneID and G.byMap[zoneID] and { G.byMap[zoneID] } or G.viewList or {}
+  local rate, mob = bestRate(zones)
+  local g = FM.Goal(target, ns.Safe.read(GetMoney), rate)
+  local text = string.format(L.FARM_GOAL_LINE, money(target), money(g.left))
+  if g.hours then text = text .. "  |cff808080" .. string.format(L.FARM_GOAL_TIME, FM.FormatHours(g.hours), mob) .. "|r" end
+  return text
+end
+
+function G.CheckGoal()
+  local target = goal()
+  if not target then return end
+  if FM.Goal(target, ns.Safe.read(GetMoney)).reached then
+    UltimateCharDB.farmGoal = nil
+    ns:Print(L.FARM_GOAL_REACHED)
+    if PlaySound and SOUNDKIT and SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01 then pcall(PlaySound, SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01) end
+  end
+  G.RenderPanel()
+end
+
+function G.AcceptGoal(copper)
+  if type(UltimateCharDB) ~= "table" or type(copper) ~= "number" or copper <= 0 then return end
+  if copper <= (ns.Safe.read(GetMoney) or 0) then
+    ns:Print(L.FARM_GOAL_ALREADY)
+    return
+  end
+  UltimateCharDB.farmGoal = copper
+  G.RenderPanel()
+end
+
+-- Our own small dialog with the game's money box (writing StaticPopupDialogs taints the shared
+-- popups). Enter accepts, Escape closes.
+local function goalFrame()
+  if G.goalFrame then return G.goalFrame end
+  local f = CreateFrame("Frame", "UltimateFarmGoalFrame", UIParent, "TooltipBackdropTemplate")
+  f:SetSize(280, 108)
+  f:SetPoint("CENTER", UIParent, "CENTER", 0, 140)
+  f:SetFrameStrata("DIALOG")
+  f:EnableMouse(true)
+  f.text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+  f.text:SetPoint("TOP", f, "TOP", 0, -16)
+  f.text:SetText(L.FARM_GOAL_PROMPT)
+  f.money = CreateFrame("Frame", "UltimateFarmGoalMoney", f, "MoneyInputFrameTemplate")
+  f.money:SetPoint("TOP", f.text, "BOTTOM", 12, -12)
+  local function accept()
+    G.AcceptGoal(MoneyInputFrame_GetCopper and ns.Safe.read(MoneyInputFrame_GetCopper, f.money))
+    f:Hide()
+  end
+  f.ok = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  f.ok:SetSize(110, 22)
+  f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -4, 14)
+  f.ok:SetText(ACCEPT or "Accept")
+  f.ok:SetScript("OnClick", accept)
+  f.cancel = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  f.cancel:SetSize(110, 22)
+  f.cancel:SetPoint("BOTTOMLEFT", f, "BOTTOM", 4, 14)
+  f.cancel:SetText(CANCEL or "Cancel")
+  f.cancel:SetScript("OnClick", function() f:Hide() end)
+  for _, key in ipairs({ "gold", "silver", "copper" }) do
+    local box = f.money[key]
+    if box and box.HookScript then box:HookScript("OnEnterPressed", accept) end
+  end
+  if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "UltimateFarmGoalFrame") end
+  f:Hide()
+  G.goalFrame = f
+  return f
+end
+
+function G.SetGoal()
+  local f = goalFrame()
+  if MoneyInputFrame_ResetMoney then pcall(MoneyInputFrame_ResetMoney, f.money) end
+  f:Show()
+end
+
 function G.RenderPanel()
   local panel = G.panel
   if not panel then return end
   if not active() or not G.scores then panel:Hide(); return end
   local lines = panelLines()
+  local gl = goalLine()
+  if gl then lines[#lines + 1] = gl end
   local width = 0
   for i, fs in ipairs(panel.lines) do
     fs:SetText(lines[i] or "")
@@ -217,7 +321,7 @@ local function buildPanel(parent)
   if type(level) == "number" then f:SetFrameLevel(level + 100) end
   f:EnableMouse(true)
   f.lines = {}
-  for i = 1, PANEL_LINES do
+  for i = 1, PANEL_LINES + 1 do -- the last for the gold goal
     local fs = f:CreateFontString(nil, "OVERLAY", i == 1 and "GameFontNormal" or "GameFontHighlightSmall")
     fs:SetJustifyH("LEFT")
     fs:SetPoint("TOPLEFT", f, "TOPLEFT", 10, i == 1 and -8 or (-10 - 16 - (i - 2) * 14))
@@ -243,6 +347,14 @@ function G.ShowMenu(owner)
       for _, v in ipairs(FM.VIEWS) do
         root:CreateRadio(L["FARM_VIEW_" .. v], function() return view() == v end,
           function() ns.Menu.Set("farming.view", v) end, v)
+      end
+      root:CreateDivider()
+      root:CreateButton(L.FARM_GOAL_SET, G.SetGoal)
+      if goal() then
+        root:CreateButton(L.FARM_GOAL_CLEAR, function()
+          UltimateCharDB.farmGoal = nil
+          G.RenderPanel()
+        end)
       end
     end,
     hide = { label = L.FARM_MENU_HIDE, fn = function()
@@ -447,7 +559,7 @@ function G.Attach()
   overlay:SetScript("OnSizeChanged", function() G.Refresh() end)
   G.panel = buildPanel(WorldMapFrame.ScrollContainer or WorldMapFrame)
   hooksecurefunc(WorldMapFrame, "OnMapChanged", function() G.Refresh() end)
-  WorldMapFrame:HookScript("OnShow", function() G.Refresh() end)
+  WorldMapFrame:HookScript("OnShow", function() G.Invalidate(); G.Refresh() end)
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
   G.Refresh()
 end
@@ -501,11 +613,13 @@ G.def = ns.Modules:Register({
     installTooltip()
     if not pricesHooked then
       pricesHooked = true
-      FS.OnPricesChanged(function() G.Refresh() end)
+      FS.OnPricesChanged(function() G.Invalidate(); G.Refresh() end)
     end
-    ns:On("SKILL_LINES_CHANGED", G, function() G.Refresh() end)
+    ns:On("SKILL_LINES_CHANGED", G, function() G.Invalidate(); G.Refresh() end)
+    ns:On("ULT_FARM_DATA", G, function() G.Invalidate() end)
+    ns:On("PLAYER_MONEY", G, function() G.CheckGoal() end)
     ns:On("ULT_SETTING_CHANGED", G, function(_, path)
-      if path and path:find("^farming") then G.Refresh() end
+      if path and path:find("^farming") then G.Invalidate(); G.Refresh() end
     end)
     ns:On("ADDON_LOADED", G, function(_, name) if name == "Blizzard_WorldMap" then G.Attach() end end)
     G.Attach()

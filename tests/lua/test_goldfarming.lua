@@ -120,10 +120,20 @@ describe("Gold farming on the world map", function()
   end)
   it("drops nodes above your skill", function()
     skillRank = 60
-    G.Refresh()
+    __fire("SKILL_LINES_CHANGED")
     assertEq(#shownPins(), 0)
     skillRank = 75
-    G.Refresh()
+    __fire("SKILL_LINES_CHANGED")
+  end)
+  it("doesn't work the scores out again just for browsing the map", function()
+    local calls = 0
+    local zones = FS.Zones
+    FS.Zones = function() calls = calls + 1; return zones() end
+    open(1415); open(1436); open(1415)
+    assertEq(calls, 0)
+    WorldMapFrame:GetScript("OnShow")()
+    assertEq(calls, 1, "opening the map does")
+    FS.Zones = zones
   end)
 end)
 
@@ -177,6 +187,7 @@ describe("Gold farming with your kills", function()
     MOBS.values[116] = { perKill = 50, kills = 12 }
     MOBS.names[116] = "Defias Bandit"
     UltimateCharDB.farmPace = { sum = 300, n = 10 }
+    G.Invalidate()
     open(1436)
     local text = panelText()
     assertTrue(text:find("Defias Bandit", 1, true) ~= nil, text)
@@ -239,5 +250,51 @@ describe("Gold farming views", function()
     assertTrue(text:find("Westfall", 1, true) == nil, text)
     assertEq(#shownHighlights(), 1)
     choose("best")
+  end)
+end)
+
+describe("Gold goals", function()
+  MoneyInputFrame_GetCopper = function(f) return f.copper end
+  local money = 400000
+  GetMoney = function() return money end
+  local printed = {}
+  local oldPrint = ns.Print
+  ns.Print = function(_, msg) printed[#printed + 1] = msg end
+
+  it("sets a goal from the panel's menu with the game's money box, in our own dialog", function()
+    G.ShowMenu(G.panel)
+    __menuEntry(ns.L.FARM_GOAL_SET).a()
+    local f = G.goalFrame
+    assertTrue(f.shown)
+    assertNil(StaticPopupDialogs and StaticPopupDialogs.ULTIMATE_FARM_GOAL, "no shared popup")
+    f.money.copper = 1000000
+    f.ok:GetScript("OnClick")()
+    assertEq(UltimateCharDB.farmGoal, 1000000)
+    assertFalse(f.shown)
+  end)
+  it("turns down a goal you've already reached", function()
+    G.AcceptGoal(300000)
+    assertEq(UltimateCharDB.farmGoal, 1000000)
+    assertEq(printed[#printed], ns.L.FARM_GOAL_ALREADY)
+  end)
+  it("shows what's left, and how long at your best timed mob", function()
+    open(1436)
+    local text = panelText()
+    assertTrue(text:find("60g 0s 0c to go", 1, true) ~= nil, text)
+    -- Defias Bandit: 50c per kill, 30 s a kill -> 60s/hr -> 600000c takes 100h
+    assertTrue(text:find("100h", 1, true) ~= nil, text)
+  end)
+  it("celebrates and clears the goal once you have the gold", function()
+    money = 1000000
+    __fire("PLAYER_MONEY")
+    assertNil(UltimateCharDB.farmGoal)
+    assertEq(printed[#printed], ns.L.FARM_GOAL_REACHED)
+  end)
+  it("can be cleared from the menu", function()
+    UltimateCharDB.farmGoal = 5000000
+    G.ShowMenu(G.panel)
+    __menuEntry(ns.L.FARM_GOAL_CLEAR).a()
+    assertNil(UltimateCharDB.farmGoal)
+    ns.Print = oldPrint
   end)
 end)

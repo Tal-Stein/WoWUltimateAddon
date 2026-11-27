@@ -24,8 +24,14 @@ local function item(g, id, qty) return { type = 1, link = "|cff9d9d9d|Hitem:" ..
 local function openLoot(slots)
   loot = slots
   __fire("LOOT_READY")
+  __fire("LOOT_OPENED")
   __fire("LOOT_CLOSED")
 end
+local units = {}
+UnitGUID = function(u) if u == "player" then return PLAYER end return units[u] and units[u].guid end
+UnitIsDead = function(u) return units[u] and units[u].dead end
+UnitIsTapDenied = function(u) return units[u] and units[u].tapDenied end
+UnitThreatSituation = function(who, u) if who == "player" and units[u] then return units[u].threat end end
 
 describe("Recording your kills", function()
   it("counts a looted corpse as a kill, with its coin and items", function()
@@ -56,14 +62,37 @@ describe("Recording your kills", function()
     assertEq(KL.Stats()[116].kills, 4, "the later loot doesn't count it again")
     assertEq(KL.Stats()[116].copper, 101)
   end)
-  it("records skinning separately", function()
-    __fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 8613)
+  it("records skinning separately, noted when the cast is sent", function()
+    __fire("UNIT_SPELLCAST_SENT", "player", "Defias Bandit", "cast-1", 8613)
     openLoot({ item(guid(116, "A1"), 2318, 1) })
     local s = KL.Stats()[116]
     assertEq(s.skinned, 1)
     assertEq(s.skins[2318], 1)
     assertNil(s.items[2318])
     assertEq(s.kills, 4)
+  end)
+  it("ignores pick-pocketing, even when its loot opens before the cast finishes", function()
+    __fire("UNIT_SPELLCAST_SENT", "player", "Defias Bandit", "cast-2", 921)
+    openLoot({ coin(guid(116, "P1"), 50) })
+    __time = __time + 10
+    openLoot({ coin(guid(116, "P1"), 7) })
+    assertEq(KL.Stats()[116].copper, 108, "only the corpse's own coin")
+  end)
+  it("counts a mob you fought dying under its nameplate, not one you never touched", function()
+    local before = KL.Stats()[116].kills
+    units.nameplate1 = { guid = guid(116, "N1"), threat = 1 }
+    __fire("UNIT_HEALTH", "nameplate1")
+    units.nameplate1.dead = true
+    __fire("UNIT_HEALTH", "nameplate1")
+    units.nameplate2 = { guid = guid(116, "N2"), dead = true }
+    __fire("UNIT_HEALTH", "nameplate2")
+    assertEq(KL.Stats()[116].kills, before + 1)
+  end)
+  it("doesn't count a reopened corpse again", function()
+    local before = KL.Stats()[116].copper
+    __time = __time + 10
+    openLoot({ coin(guid(116, "A1"), 31) })
+    assertEq(KL.Stats()[116].copper, before)
   end)
   it("ignores other players' and non-creature loot", function()
     openLoot({ item("GameObject-0-1-0-12-1731-00", 2770, 2) })

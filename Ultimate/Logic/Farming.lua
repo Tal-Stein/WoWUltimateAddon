@@ -123,3 +123,47 @@ function FM.Grade(list)
   end
   return list
 end
+
+FM.VIEWS = { "best", "near", "level" }
+FM.NEAR_MINUTES = { 10, 20 } -- how far "near" looks, then further when under NEAR_MIN zones are that close
+FM.NEAR_MIN = 3
+FM.LEVEL_SLACK = 2           -- levels either side of a zone's range that still suit you
+
+local function copy(z, extra)
+  local c = {}
+  for k, v in pairs(z) do c[k] = v end
+  for k, v in pairs(extra) do c[k] = v end
+  return c
+end
+
+-- The graded zones (list: FM.ScoreZones, best first) for one view:
+--   "best"   all of them
+--   "near"   within NEAR_MINUTES of travel (ctx.minutes(mapID) -> minutes or nil), with .minutes
+--   "level"  whose level range (ctx.levels(mapID) -> min, max) suits ctx.level, with .minLevel/.maxLevel
+-- Order stays most valuable first.
+function FM.View(list, view, ctx)
+  local out = {}
+  if view == "near" then
+    for _, limit in ipairs(FM.NEAR_MINUTES) do
+      out = {}
+      for _, z in ipairs(list) do
+        local m = z.grade and ctx.minutes and ctx.minutes(z.mapID)
+        if m and m <= limit then out[#out + 1] = copy(z, { minutes = m }) end
+      end
+      if #out >= FM.NEAR_MIN then break end
+    end
+  elseif view == "level" then
+    for _, z in ipairs(list) do
+      local lo, hi
+      if z.grade and ctx.levels then lo, hi = ctx.levels(z.mapID) end
+      if lo and hi and ctx.level and ctx.level >= lo - FM.LEVEL_SLACK and ctx.level <= hi + FM.LEVEL_SLACK then
+        out[#out + 1] = copy(z, { minLevel = lo, maxLevel = hi })
+      end
+    end
+  else
+    for _, z in ipairs(list) do
+      if z.grade then out[#out + 1] = z end
+    end
+  end
+  return out
+end

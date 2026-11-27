@@ -67,12 +67,48 @@ end
 ------------------------------------------------------------------------------
 -- Scores
 ------------------------------------------------------------------------------
+-- Minutes to a zone's center at your current run speed, straight-line; 0 in the zone you're in.
+-- nil when your position isn't known or the zone is on another continent.
+function G.TravelMinutes(mapID)
+  local here = C_Map and ns.Safe.read(C_Map.GetBestMapForUnit, "player")
+  if here == mapID then return 0 end
+  if not (UnitPosition and C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return nil end
+  local ok, py, px, _, instance = pcall(UnitPosition, "player")
+  if not ok or type(py) ~= "number" or ns.Safe.isSecret(py) then return nil end
+  local ok2, continent, pos = pcall(C_Map.GetWorldPosFromMapPos, mapID, CreateVector2D(0.5, 0.5))
+  if not ok2 or not pos or (instance and continent ~= instance) then return nil end
+  local zy, zx = pos:GetXY()
+  local speed = 7
+  if GetUnitSpeed then
+    local ok3, _, run = pcall(GetUnitSpeed, "player")
+    if ok3 and type(run) == "number" and run > 0 then speed = run end
+  end
+  return math.sqrt((zy - py) ^ 2 + (zx - px) ^ 2) / speed / 60
+end
+
+local function viewContext()
+  return {
+    minutes = G.TravelMinutes,
+    levels = function(mapID)
+      if not (C_Map and C_Map.GetMapLevels) then return nil end
+      local ok, lo, hi = pcall(C_Map.GetMapLevels, mapID)
+      if ok and type(lo) == "number" and type(hi) == "number" and lo > 0 then return lo, hi end
+    end,
+    level = ns.Safe.read(UnitLevel, "player"),
+  }
+end
+
+local function view() return o().view or "best" end
+
 function G.Score()
   G.skills = FS.Skills()
   G.scores = FM.ScoreZones(FS.Zones(), ns.GatherNodes, G.skills, FS.Price, area,
     o().includeMobs ~= false and FS.Mobs(G.skills) or nil)
   G.byMap = {}
   for _, z in ipairs(G.scores) do G.byMap[z.mapID] = z end
+  G.viewList = FM.View(G.scores, view(), viewContext())
+  G.inView = {}
+  for _, z in ipairs(G.viewList) do G.inView[z.mapID] = z end
 end
 
 ------------------------------------------------------------------------------
@@ -132,17 +168,28 @@ local function panelLines()
       end
     end
   else
-    lines[1] = L.FARM_BEST
+    lines[1] = L["FARM_VIEW_" .. view()]
     lines[2] = profLine()
     local shown = 0
-    for _, z in ipairs(G.scores) do
-      if z.grade and shown < BEST_ZONES then
-        shown = shown + 1
-        lines[#lines + 1] = gradeText(z.grade) .. "  " .. mapName(z.mapID) ..
-          "  |cff808080" .. z.entries[1].name .. "|r"
+    for _, z in ipairs(G.viewList) do
+      if shown >= BEST_ZONES then break end
+      shown = shown + 1
+      local where = ""
+      if z.minutes then
+        where = "  |cff808080" .. (z.minutes < 0.5 and L.FARM_HERE or
+          string.format(L.FARM_MINUTES, math.max(1, math.floor(z.minutes + 0.5)))) .. "|r"
+      elseif z.minLevel then
+        where = string.format("  |cff808080(%d-%d)|r", z.minLevel, z.maxLevel)
       end
+      lines[#lines + 1] = gradeText(z.grade) .. "  " .. mapName(z.mapID) .. where ..
+        "  |cff808080" .. z.entries[1].name .. "|r"
     end
-    if shown == 0 then lines[#lines + 1] = #G.scores > 0 and L.FARM_NO_PRICES or L.FARM_NOTHING end
+    if shown == 0 then
+      local anyGraded = false
+      for _, z in ipairs(G.scores) do if z.grade then anyGraded = true end end
+      lines[#lines + 1] = anyGraded and L["FARM_EMPTY_" .. view()]
+        or (#G.scores > 0 and L.FARM_NO_PRICES or L.FARM_NOTHING)
+    end
   end
   return lines
 end
@@ -179,6 +226,12 @@ local function buildPanel(parent)
   f:SetScript("OnMouseUp", function(self, button)
     if button == "RightButton" then G.ShowMenu(self) end
   end)
+  f:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(L.FARM_PANEL_HINT, 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  f:SetScript("OnLeave", function() GameTooltip:Hide() end)
   f:Hide()
   return f
 end
@@ -186,6 +239,12 @@ end
 function G.ShowMenu(owner)
   ns.Menu.Show(owner, {
     title = L.MODULE_FARMING,
+    items = function(root)
+      for _, v in ipairs(FM.VIEWS) do
+        root:CreateRadio(L["FARM_VIEW_" .. v], function() return view() == v end,
+          function() ns.Menu.Set("farming.view", v) end, v)
+      end
+    end,
     hide = { label = L.FARM_MENU_HIDE, fn = function()
       ns.Menu.Set("farming.showOnMap", false)
       ns:Print(L.FARM_HIDDEN)
@@ -260,7 +319,7 @@ end
 local function shadeContinent(mapID)
   local n = 0
   for _, child in ipairs(ns.Safe.read(C_Map.GetMapChildrenInfo, mapID, mapTypes().Zone) or {}) do
-    local z = G.byMap[child.mapID]
+    local z = G.inView[child.mapID]
     if z and z.grade then
       local x, y = spotOn(mapID, child.mapID)
       if x then
@@ -435,7 +494,7 @@ G.def = ns.Modules:Register({
   key = "farming",
   name = L.MODULE_FARMING,
   description = L.MODULE_FARMING_DESC,
-  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true },
+  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best" },
   OnEnable = function()
     ns.KillLog.Start()
     installMapMenu()
@@ -468,6 +527,9 @@ function G.def.BuildSettings(ctx)
   ctx:Header(string.format(L.FARM_SOURCES, table.concat(parts, ", ")))
   ctx:Checkbox("farming.showOnMap", L.FARM_SHOW_MAP, L.FARM_SHOW_MAP_TIP)
   ctx:Checkbox("farming.showPins", L.FARM_SHOW_PINS, L.FARM_SHOW_PINS_TIP)
+  local views = {}
+  for _, v in ipairs(FM.VIEWS) do views[#views + 1] = { value = v, label = L["FARM_VIEW_" .. v] } end
+  ctx:Dropdown("farming.view", L.FARM_VIEW, views, L.FARM_VIEW_TIP)
   ctx:Checkbox("farming.recordKills", L.FARM_RECORD, L.FARM_RECORD_TIP)
   ctx:Checkbox("farming.includeMobs", L.FARM_INCLUDE_MOBS, L.FARM_INCLUDE_MOBS_TIP)
   ctx:Checkbox("farming.unitTooltip", L.FARM_UNIT_TOOLTIP, L.FARM_UNIT_TOOLTIP_TIP)

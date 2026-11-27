@@ -124,6 +124,9 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Skinning a corpse doesn't count as another kill; with Skinning, its value includes skins.
 - [ ] Its zone's panel lists the mob with gold per kill; zones you farm grade higher.
 - [ ] Pick-pocketing doesn't count as a kill. Turning "Record what my kills drop" off stops it.
+- [ ] Right-click the panel: three views (Best for you / Best near you / Best while levelling).
+      "Near you" lists zones with "here" or "N min" (faster when mounted); "Levelling" shows each
+      zone's level range and only zones that suit your level. The map tints only the view's zones.
 
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest

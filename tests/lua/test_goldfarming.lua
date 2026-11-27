@@ -197,3 +197,47 @@ describe("Gold farming with your kills", function()
     assertEq(#lines, 0)
   end)
 end)
+
+describe("Gold farming views", function()
+  -- You stand in Elwynn (center 0,0 in world yards); Westfall's center is 840 yards away.
+  UnitPosition = function() return 0, 0, 0, 0 end
+  CreateVector2D = function(x, y) return { x = x, y = y, GetXY = function(v) return v.x, v.y end } end
+  C_Map.GetWorldPosFromMapPos = function(id)
+    local c = ({ [1429] = { 0, 0 }, [1436] = { 840, 0 } })[id]
+    if c then return 0, CreateVector2D(c[1], c[2]) end
+  end
+  C_Map.GetBestMapForUnit = function() return 1429 end
+  C_Map.GetMapLevels = function(id) return ({ [1429] = { 1, 10 }, [1436] = { 10, 20 } })[id][1], ({ [1429] = { 1, 10 }, [1436] = { 10, 20 } })[id][2] end
+  GetUnitSpeed = function() return 0, 7 end
+  UnitLevel = function() return 5 end
+
+  local function choose(view)
+    G.ShowMenu(G.panel)
+    __menuEntry(ns.L["FARM_VIEW_" .. view]).b()
+  end
+
+  it("offers the views in the panel's menu, best first by default", function()
+    assertEq(ns.db.farming.view, "best")
+    G.ShowMenu(G.panel)
+    assertTrue(__menuEntry(ns.L.FARM_VIEW_near) ~= nil)
+    assertTrue(__menuEntry(ns.L.FARM_VIEW_level) ~= nil)
+  end)
+  it("near me: shows how far each zone is", function()
+    choose("near")
+    assertEq(ns.db.farming.view, "near")
+    open(1415)
+    local text = panelText()
+    assertTrue(text:find(ns.L.FARM_VIEW_near, 1, true) ~= nil, text)
+    assertTrue(text:find("2 min", 1, true) ~= nil, text)
+    assertTrue(text:find(ns.L.FARM_HERE, 1, true) ~= nil, text)
+  end)
+  it("levelling: only zones that suit your level, and only those are shaded", function()
+    choose("level")
+    open(1415)
+    local text = panelText()
+    assertTrue(text:find("Elwynn Forest", 1, true) ~= nil, text)
+    assertTrue(text:find("Westfall", 1, true) == nil, text)
+    assertEq(#shownHighlights(), 1)
+    choose("best")
+  end)
+end)

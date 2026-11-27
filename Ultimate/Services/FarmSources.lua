@@ -334,8 +334,20 @@ end
 
 function FS.NpcName(npcID) return npc(npcID, "name") end
 
--- Where one mob spawns on a map: { { x, y } } in 0-1 (Questie's spawns for the map's area).
+-- Where one mob spawns on a map: { { x, y } } in 0-1 (Questie's spawns for the map's area). Kept
+-- per map and mob: reading spawns from Questie's compressed store isn't free.
+local pointCache = {}
 function FS.MobPoints(mapID, npcID)
+  local ck = FS.SourceKey()
+  if pointCache.key ~= ck then pointCache = { key = ck } end
+  local cacheKey = mapID * 1000000 + npcID
+  if pointCache[cacheKey] then return pointCache[cacheKey] end
+  local list = FS.ReadMobPoints(mapID, npcID)
+  pointCache[cacheKey] = list
+  return list
+end
+
+function FS.ReadMobPoints(mapID, npcID)
   local zones = zoneDB()
   local area = zones and ns.Safe.read(zones.GetAreaIdByUiMapId, zones, mapID)
   local spawns = area and npc(npcID, "spawns")

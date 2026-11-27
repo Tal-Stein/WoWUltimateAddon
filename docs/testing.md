@@ -106,6 +106,13 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Right-click the bar: Lock, Hide flight timer, Settings. Dragging it moves it (unlocked).
 
 ## Gold Farming
+- [ ] Zone map, Mobs lens: soft colored spots where each listed mob lives (Questie-style areas),
+      gold/green/blue/grey by rating; hovering a spot shows the mob, level, how many live there
+      and its grinding rating. Continent maps: zones tinted in their grade's color.
+- [ ] Farming mode (map button or target bar right-click, or settings): the target bar adds
+      grinding mobs around your level with a coin badge and their gold per kill in the grade's
+      color, best gold first; quest mobs keep their level rating. Mob tooltips say
+      "Grinding: Good  31s per kill ..." or "Grinding: not rated yet".
 - [ ] A round coin button sits at the top right of the world map (minimap tracking-button look).
       Left-click turns gold farming off (icon greys) and on; right-click: Gold Farming on/off,
       Mobs / Gathering, the three views, gold goal, Settings.

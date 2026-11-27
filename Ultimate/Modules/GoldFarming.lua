@@ -34,7 +34,12 @@ local ICONS = {
 -- Points inside a zone's bounding box to try, center first, when looking for a spot on the zone.
 local PROBES = { { .5, .5 }, { .4, .5 }, { .6, .5 }, { .5, .4 }, { .5, .6 }, { .3, .3 }, { .7, .3 }, { .3, .7 }, { .7, .7 } }
 
-G.highlights, G.labels, G.pins = {}, {}, {}
+G.highlights, G.labels, G.pins, G.blobs = {}, {}, {}, {}
+local BLOB_SIZE = 0.028   -- share of the map's width; overlapping spots read as an area
+local BLOB_ALPHA = 0.45
+local AREA_MOBS = 12      -- mobs drawn per zone, most valuable first
+local CIRCLE_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local WHITE = "Interface\\Buttons\\WHITE8X8"
 
 local function o() return ns.db.farming end
 local function active() return ns.Modules:IsActive("farming") and o().showOnMap end
@@ -373,6 +378,8 @@ function G.ShowMenu(owner)
     items = function(root)
       root:CreateCheckbox(L.FARM_MAP_TOGGLE, function() return o().showOnMap and true or false end,
         function() ns.Menu.Set("farming.showOnMap", not o().showOnMap) end)
+      root:CreateCheckbox(L.FARM_MODE, function() return ns.FarmTargeting.Active() end,
+        function() ns.FarmTargeting.SetMode(not ns.FarmTargeting.Active()) end)
       root:CreateDivider()
       for _, l in ipairs(G.LENSES) do
         root:CreateRadio(L["FARM_LENS_" .. l], function() return lens() == l end,
@@ -501,7 +508,7 @@ local function pinLeave() GameTooltip:Hide() end
 local function pin(i)
   local p = G.pins[i]
   if not p then
-    p = CreateFrame("Button", nil, G.overlay)
+    p = CreateFrame("Button", nil, G.pinLayer)
     p:SetSize(PIN_SIZE, PIN_SIZE)
     p.icon = p:CreateTexture(nil, "ARTWORK")
     p.icon:SetAllPoints(p)
@@ -529,6 +536,71 @@ local function pinZone(mapID)
       p:ClearAllPoints()
       p:SetPoint("CENTER", G.overlay, "TOPLEFT", s.x * w, -s.y * h)
       p:Show()
+    end
+  end
+end
+
+------------------------------------------------------------------------------
+-- Mob areas (zone maps, Mobs lens): every spawn point of the zone's mobs as a soft colored spot,
+-- so where they live reads as colored areas, like Questie's quest areas. Colored by the mob's
+-- rating: its recorded gold per kill against your best, or (not farmed yet) how many live here
+-- against the zone's most common mob.
+------------------------------------------------------------------------------
+local function blobEnter(self)
+  local e = self.entry
+  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+  local c = ns.UI.DifficultyColor and ns.UI.DifficultyColor(e.maxLevel) or { r = 1, g = 1, b = 1 }
+  local levels = e.minLevel == e.maxLevel and tostring(e.minLevel) or (e.minLevel .. "-" .. e.maxLevel)
+  GameTooltip:SetText(string.format("%s (%s)", e.name or "?", levels), c.r, c.g, c.b)
+  GameTooltip:AddLine(string.format(L.FARM_LIVE_HERE, e.count), 1, 1, 1)
+  local text, r, g, b = ns.FarmTargeting.TooltipLine(e.npcID)
+  GameTooltip:AddLine(text, r, g, b)
+  GameTooltip:Show()
+end
+
+local function blob(i)
+  local b = G.blobs[i]
+  if not b then
+    b = CreateFrame("Button", nil, G.pinLayer)
+    b.tex = b:CreateTexture(nil, "ARTWORK")
+    b.tex:SetAllPoints(b)
+    b.tex:SetTexture(WHITE)
+    if b.tex.SetMask then b.tex:SetMask(CIRCLE_MASK) end
+    b:SetScript("OnEnter", blobEnter)
+    b:SetScript("OnLeave", pinLeave)
+    G.blobs[i] = b
+  end
+  return b
+end
+
+function G.MobGrade(e, best, most)
+  if e.price then return FM.RatioGrade(e.price, best) or "poor" end
+  return FM.RatioGrade(e.count, most) or "poor"
+end
+
+local function mobAreas(mapID)
+  local z = G.byMap[mapID]
+  if not z then return end
+  local most = 0
+  for _, e in ipairs(z.entries) do if e.count > most then most = e.count end end
+  local best = ns.FarmTargeting.BestKnown()
+  local w, h = canvasSize()
+  local size = math.max(6, w * BLOB_SIZE)
+  local n = 0
+  for i, e in ipairs(z.entries) do
+    if i > AREA_MOBS then break end
+    local grade = G.MobGrade(e, best, most)
+    local c = G.COLORS[grade]
+    for _, pt in ipairs(FS.MobPoints(mapID, e.npcID)) do
+      n = n + 1
+      local b = blob(n)
+      b.entry, b.grade = e, grade
+      b:SetSize(size, size)
+      b.tex:SetVertexColor(c[1], c[2], c[3])
+      b.tex:SetAlpha(BLOB_ALPHA)
+      b:ClearAllPoints()
+      b:SetPoint("CENTER", G.overlay, "TOPLEFT", pt.x * w, -pt.y * h)
+      b:Show()
     end
   end
 end
@@ -589,6 +661,7 @@ local function clear()
   for _, t in ipairs(G.highlights) do t:Hide() end
   for _, t in ipairs(G.labels) do t:Hide() end
   for _, p in ipairs(G.pins) do p:Hide() end
+  for _, b in ipairs(G.blobs) do b:Hide() end
 end
 
 function G.Refresh()
@@ -607,7 +680,7 @@ function G.Refresh()
   if G.mapType == mapTypes().Continent then
     shadeContinent(mapID)
   elseif G.mapType == mapTypes().Zone then
-    pinZone(mapID)
+    if lens() == "mobs" then mobAreas(mapID) else pinZone(mapID) end
   end
   G.RenderPanel()
 end
@@ -633,9 +706,26 @@ function G.Attach()
   local canvas = WorldMapFrame:GetCanvas()
   if not canvas then return end
   G.attached, G.canvas = true, canvas
+  -- Two layers on the map canvas, at the map's own pin levels: the zone tint where the game draws
+  -- its hover highlight (above the map art, under the pins), and our spots and pins with the
+  -- map's area pins. Plain child frames otherwise sit under the map's detail layers.
+  local base = canvas.GetFrameLevel and canvas:GetFrameLevel() or 0
+  local function levelFor(kind, fallback)
+    local mgr = WorldMapFrame.GetPinFrameLevelsManager and WorldMapFrame:GetPinFrameLevelsManager()
+    if mgr and mgr.GetValidFrameLevel then
+      local ok, level = pcall(mgr.GetValidFrameLevel, mgr, kind)
+      if ok and type(level) == "number" then return level end
+    end
+    return fallback
+  end
   local overlay = CreateFrame("Frame", nil, canvas)
   overlay:SetAllPoints(canvas)
+  overlay:SetFrameLevel(levelFor("PIN_FRAME_LEVEL_MAP_HIGHLIGHT", base + 20))
   G.overlay = overlay
+  local pinLayer = CreateFrame("Frame", nil, canvas)
+  pinLayer:SetAllPoints(canvas)
+  pinLayer:SetFrameLevel(levelFor("PIN_FRAME_LEVEL_AREA_POI", base + 500))
+  G.pinLayer = pinLayer
   local elapsed = 0
   overlay:SetScript("OnUpdate", function(_, dt)
     elapsed = elapsed + (dt or 0)
@@ -721,10 +811,17 @@ local function onUnitTooltip(tooltip, data)
   local guid = data and data.guid
   if ns.Safe.isSecret(guid) then return end
   local npcID = ns.Units.npcIdFromGuid(guid)
-  local stat = npcID and ns.KillLog.Stats()[npcID]
-  local v = stat and FM.MobValue(stat, FS.Price, FS.Skills())
-  if not v or v.kills < FM.MIN_KILLS or v.perKill <= 0 then return end
-  tooltip:AddLine(mobValueText(v.perKill, v.kills), 1, 0.82, 0)
+  if not npcID then return end
+  if not ns.FarmTargeting.Value(npcID) then
+    -- Not rated yet: say so only for mobs worth farming (hostile, non-elite, around your level).
+    if type(tooltip.GetUnit) ~= "function" then return end
+    local ok, _, unit = pcall(tooltip.GetUnit, tooltip)
+    if not ok or type(unit) ~= "string" or ns.Safe.isSecret(unit) then return end
+    local m = ns.Nameplates:Snapshot(unit)
+    if not m or not ns.FarmTargeting.Farmable(m, ns.Safe.read(UnitLevel, "player") or 1) then return end
+  end
+  local text, r, g, b = ns.FarmTargeting.TooltipLine(npcID)
+  tooltip:AddLine(text, r, g, b)
 end
 
 local tooltipHooked = false
@@ -742,9 +839,10 @@ G.def = ns.Modules:Register({
   key = "farming",
   name = L.MODULE_FARMING,
   description = L.MODULE_FARMING_DESC,
-  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best", lens = "mobs" },
+  defaults = { showOnMap = true, showPins = true, recordKills = true, unitTooltip = true, includeMobs = true, view = "best", lens = "mobs", targetMode = false },
   OnEnable = function()
     ns.KillLog.Start()
+    ns.FarmTargeting.Apply()
     FS.Prepare()
     installMapMenu()
     installTooltip()
@@ -759,6 +857,7 @@ G.def = ns.Modules:Register({
     end)
     ns:On("PLAYER_MONEY", G, function() G.CheckGoal() end)
     ns:On("ULT_SETTING_CHANGED", G, function(_, path)
+      if path == "farming.targetMode" then ns.FarmTargeting.Apply() end
       if path and path:find("^farming") then G.Invalidate(); G.Refresh() end
     end)
     ns:On("ADDON_LOADED", G, function(_, name) if name == "Blizzard_WorldMap" then G.Attach() end end)
@@ -767,6 +866,7 @@ G.def = ns.Modules:Register({
   end,
   OnDisable = function()
     ns.KillLog.Stop()
+    ns.Targeting:UnregisterProvider("farm")
     ns:OffAll(G)
     G.Refresh()
     G.UpdateButton()
@@ -788,6 +888,7 @@ function G.def.BuildSettings(ctx)
   local lenses = {}
   for _, l in ipairs(G.LENSES) do lenses[#lenses + 1] = { value = l, label = L["FARM_LENS_" .. l] } end
   ctx:Dropdown("farming.lens", L.FARM_LENS, lenses, L.FARM_LENS_TIP)
+  ctx:Checkbox("farming.targetMode", L.FARM_MODE, L.FARM_MODE_TIP)
   ctx:Checkbox("farming.recordKills", L.FARM_RECORD, L.FARM_RECORD_TIP)
   ctx:Checkbox("farming.includeMobs", L.FARM_INCLUDE_MOBS, L.FARM_INCLUDE_MOBS_TIP)
   ctx:Checkbox("farming.unitTooltip", L.FARM_UNIT_TOOLTIP, L.FARM_UNIT_TOOLTIP_TIP)

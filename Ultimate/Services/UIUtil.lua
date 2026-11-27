@@ -6,6 +6,7 @@ ns.UI = UI
 
 UI.ICON_QUEST = "Interface\\GossipFrame\\AvailableQuestIcon"
 UI.ICON_RARE = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1"
+UI.ICON_FARM = "Interface\\Icons\\INV_Misc_Coin_02"
 UI.ICON_BOSS = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull"
 
 local RED = { r = 1, g = 0.1, b = 0.1 }

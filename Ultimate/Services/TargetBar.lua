@@ -75,6 +75,10 @@ function Bar.ShowMenu(owner)
           ns.Targeting:RequestRefresh()
         end)
       end
+      if ns.FarmTargeting and ns.Modules:IsActive("farming") then
+        root:CreateCheckbox(L.FARM_MODE, function() return ns.FarmTargeting.Active() end,
+          function() ns.FarmTargeting.SetMode(not ns.FarmTargeting.Active()) end)
+      end
       local function isOrientation(v) return opts().orientation == v end
       local function setOrientation(v) ns.Menu.Set("targeting.bar.orientation", v) end
       root:CreateRadio(L.HORIZONTAL, isOrientation, setOrientation, "HORIZONTAL")
@@ -147,6 +151,7 @@ end
 
 local function iconFor(c)
   if c.kind == "rare" or c.isRare then return UI.ICON_RARE end
+  if c.kind == "farm" then return UI.ICON_FARM end
   if c.level == -1 then return UI.ICON_BOSS end
   for _, m in ipairs(c.mobs or {}) do
     if m.classification == "worldboss" then return UI.ICON_BOSS end
@@ -197,7 +202,14 @@ function Bar:UpdateVisuals()
       local color = UI.DifficultyColor(c.level)
       b.level:SetText(UI.LevelText(c.level, c.mobs and c.mobs[1] and c.mobs[1].classification))
       b.level:SetTextColor(color.r, color.g, color.b)
-      b.label:SetText(c.name)
+      local label = c.name
+      if c.gold and ns.FarmTargeting and ns.GoldFarming then
+        -- Grinding mobs: their gold rating, in the grade's color.
+        local gc = ns.GoldFarming.COLORS[c.goldGrade or "poor"]
+        label = string.format("%s  |cff%02x%02x%02x%s|r", c.name, gc[1] * 255, gc[2] * 255, gc[3] * 255,
+          ns.FarmTargeting.ShortMoney(c.gold))
+      end
+      b.label:SetText(label)
       b.countText:SetText((c.count or 0) > 1 and tostring(c.count) or "")
       if icon and icon.SetDesaturated then icon:SetDesaturated(false) end
     elseif b.candidateName then

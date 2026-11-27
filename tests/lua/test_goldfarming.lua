@@ -377,4 +377,39 @@ describe("Mobs lens", function()
   it("doesn't pin gathering nodes", function()
     assertEq(#shownPins(), 0)
   end)
+  it("colors where each mob lives on the zone map, by its rating", function()
+    FS.MobPoints = function(mapID, npcID)
+      if npcID == 116 then return { { x = 0.4, y = 0.4 }, { x = 0.42, y = 0.41 } } end
+      if npcID == 117 then return { { x = 0.6, y = 0.7 } } end
+      return {}
+    end
+    open(1436)
+    local shown, grades = 0, {}
+    for _, b in ipairs(G.blobs) do
+      if b.shown then shown = shown + 1; grades[b.entry.npcID] = b.grade end
+    end
+    assertEq(shown, 3)
+    assertEq(grades[116], "excellent", "the mob you farm best")
+    assertEq(grades[117], "fair", "not farmed: 12 of the zone's 40")
+  end)
+  it("shows a mob's level, numbers and rating when hovering its area", function()
+    local b
+    for _, x in ipairs(G.blobs) do if x.shown and x.entry.npcID == 116 then b = x end end
+    local lines = {}
+    GameTooltip = GameTooltip or CreateFrame("Frame", "GameTooltip")
+    local oldSet, oldAdd = GameTooltip.SetText, GameTooltip.AddLine
+    GameTooltip.SetText = function(_, t) lines[#lines + 1] = t end
+    GameTooltip.AddLine = function(_, t) lines[#lines + 1] = t end
+    b:GetScript("OnEnter")(b)
+    GameTooltip.SetText, GameTooltip.AddLine = oldSet, oldAdd
+    local text = table.concat(lines, "\n")
+    assertTrue(text:find("Defias Bandit (10-11)", 1, true) ~= nil, text)
+    assertTrue(text:find("40 live here", 1, true) ~= nil, text)
+  end)
+  it("are hidden in the gathering lens", function()
+    ns.Menu.Set("farming.lens", "gathering")
+    open(1436)
+    for _, b in ipairs(G.blobs) do assertFalse(b.shown) end
+    ns.Menu.Set("farming.lens", "mobs")
+  end)
 end)

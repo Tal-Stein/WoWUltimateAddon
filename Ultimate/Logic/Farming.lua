@@ -104,22 +104,23 @@ FM.GRADES = { "excellent", "good", "fair", "poor" }
 -- excellent, 40% good, 15% fair, below that poor. Zones worth nothing (no prices yet) get none.
 FM.THRESHOLDS = { 0.75, 0.4, 0.15 }
 
+-- A value's grade against the best one (FM.THRESHOLDS); nil without a value or a best.
+function FM.RatioGrade(value, best)
+  if not value or value <= 0 or not best or best <= 0 then return nil end
+  local r = value / best
+  for i, t in ipairs(FM.THRESHOLDS) do
+    if r >= t then return FM.GRADES[i] end
+  end
+  return FM.GRADES[4]
+end
+
 function FM.Grade(list)
   local best = 0
   for _, z in ipairs(list) do
     if (z.value or 0) > 0 and z.density > best then best = z.density end
   end
   for _, z in ipairs(list) do
-    if (z.value or 0) > 0 and best > 0 then
-      local r = z.density / best
-      local grade = FM.GRADES[4]
-      for i, t in ipairs(FM.THRESHOLDS) do
-        if r >= t then grade = FM.GRADES[i]; break end
-      end
-      z.grade = grade
-    else
-      z.grade = nil
-    end
+    z.grade = (z.value or 0) > 0 and FM.RatioGrade(z.density, best) or nil
   end
   return list
 end

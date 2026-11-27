@@ -89,3 +89,60 @@ describe("Zone grades", function()
     assertNil(list[2].grade)
   end)
 end)
+
+describe("Mob value per kill", function()
+  -- 10 kills: 2s 50c coin in all, 4 Linen Cloth (5c each at auction) and a grey (12c vendor).
+  local stat = { kills = 10, copper = 250, items = { [2589] = 4, [3300] = 1 }, skinned = 5, skins = { [2318] = 5 } }
+  local prices = { [2589] = 5, [3300] = 12, [2318] = 20 }
+  local function p(id) return prices[id], "auction" end
+  it("adds coin and the loot's value, per kill", function()
+    local v = FM.MobValue(stat, p, {})
+    assertEq(v.perKill, (250 + 4 * 5 + 12) / 10)
+    assertEq(v.coin, 25)
+    assertEq(v.kills, 10)
+  end)
+  it("counts skinning only for skinners", function()
+    assertEq(FM.MobValue(stat, p, {}).skin, 0)
+    local v = FM.MobValue(stat, p, { skinning = 100 })
+    assertEq(v.skin, 5 * 20 / 10)
+    assertEq(v.perKill, (250 + 4 * 5 + 12 + 100) / 10)
+  end)
+  it("knows nothing without kills", function()
+    assertNil(FM.MobValue({ kills = 0, copper = 0, items = {} }, p, {}))
+  end)
+end)
+
+describe("Gold per hour at your pace", function()
+  it("is value per kill times your kills per hour", function()
+    assertEq(FM.PerHour(30, { sum = 600, n = 20 }), 30 * 3600 / 30)
+  end)
+  it("needs enough timed kills", function()
+    assertNil(FM.PerHour(30, { sum = 60, n = 2 }))
+    assertNil(FM.PerHour(30, nil))
+  end)
+end)
+
+describe("Zone values with mobs", function()
+  local mobs = {
+    zones = { [1436] = { [116] = 30, [117] = 10 }, [1411] = { [3098] = 50 } },
+    values = { [116] = { perKill = 40, kills = 25 }, [3098] = { perKill = 2, kills = 3 } },
+    names = { [116] = "Defias Bandit", [3098] = "Mottled Boar" },
+  }
+  local list = FM.ScoreZones({ [1436] = { ["Peacebloom"] = 5 } }, NODES, { herbalism = 75 }, price, nil, mobs)
+  local byMap = {}
+  for _, z in ipairs(list) do byMap[z.mapID] = z end
+  it("adds every mob's spawns times its value per kill", function()
+    assertEq(byMap[1436].value, 5 * 10 + 30 * 40)
+  end)
+  it("lists mobs beside nodes, best first", function()
+    local e = byMap[1436].entries[1]
+    assertEq(e.kind, "mob")
+    assertEq(e.name, "Defias Bandit")
+    assertEq(e.count, 30)
+    assertEq(e.price, 40)
+    assertEq(e.kills, 25)
+  end)
+  it("leaves out mobs with too few kills to trust", function()
+    assertNil(byMap[1411])
+  end)
+end)

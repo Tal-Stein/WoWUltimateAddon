@@ -16,6 +16,13 @@ LibQuestieDB = {
     Get = function(id, field) if field == "spawns" then return OBJECTS[id] end end,
   },
 }
+local NPCS = {
+  [116] = { name = "Defias Bandit", minLevel = 10, maxLevel = 11, rank = 0, spawns = { [40] = { { 1, 1 }, { 2, 2 } } } },
+  [100] = { name = "Gruff Swiftbite", minLevel = 12, maxLevel = 12, rank = 4, spawns = { [12] = { { 1, 1 } } } },
+  [500] = { name = "Ogre", minLevel = 30, maxLevel = 31, rank = 0, spawns = { [40] = { { 3, 3 } } } },
+}
+LibQuestieDB.Npc = { Get = function(id, field) local n = NPCS[id]; return n and n[field] end }
+UnitLevel = function() return 10 end
 local AREA = { [12] = 1429, [40] = 1436 }
 QuestieLoader = { _modules = { ZoneDB = {
   GetUiMapIdByAreaId = function(_, a) return AREA[a] end,
@@ -99,6 +106,25 @@ describe("Node counts from GatherMate2", function()
     assertEq(zones[1429]["Peacebloom"], 1, "herbs still from Questie")
     LibStub = nil
     versions.GatherMate2 = nil
+  end)
+end)
+
+describe("Mobs you've killed", function()
+  it("values each recorded mob and counts its spawns per map from Questie", function()
+    UltimateDB.farmMobs = {
+      [116] = { kills = 8, copper = 400, items = {}, skins = {}, maps = {} },
+      [100] = { kills = 8, copper = 4000, items = {}, skins = {}, maps = {} },
+      [500] = { kills = 8, copper = 4000, items = {}, skins = {}, maps = {} },
+    }
+    local mobs = FS.Mobs({})
+    assertEq(mobs.zones[1436], { [116] = 2 })
+    assertEq(mobs.values[116].perKill, 50)
+    assertEq(mobs.names[116], "Defias Bandit")
+  end)
+  it("leaves out elites and rares, and mobs well above your level", function()
+    local mobs = FS.Mobs({})
+    assertNil(mobs.zones[1429])
+    assertNil(mobs.values[500])
   end)
 end)
 

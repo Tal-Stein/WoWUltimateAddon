@@ -111,6 +111,15 @@ function FT.Candidates(mobs)
   return list
 end
 
+-- (timed for /ult farm's diagnostics once the module that keeps the timings has loaded)
+local rawCandidates, timedCandidates = FT.Candidates, nil
+FT.Candidates = function(mobs)
+  if not timedCandidates and ns.GoldFarming and ns.GoldFarming.Timed then
+    timedCandidates = ns.GoldFarming.Timed("targetBar", rawCandidates)
+  end
+  return (timedCandidates or rawCandidates)(mobs)
+end
+
 -- In farming mode the bar ranks by gold first (after pinned quests).
 function FT.Criteria(criteria)
   if not FT.Active() then return criteria end

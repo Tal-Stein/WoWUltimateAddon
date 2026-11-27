@@ -800,9 +800,66 @@ function G.Attach()
     pcall(api.RegisterCallback, G, "OpenMap_StitchedChanged", function() G.Refresh() end)
     pcall(api.RegisterCallback, G, "OpenMap_ViewChanged", function() if G.overlay then G.LiftOverOpenMap() end end)
   end
-  WorldMapFrame:HookScript("OnShow", function() G.Refresh() end) -- data changes invalidate, not opening
+  -- Opening the map takes in item prices that arrived while it was open before; nothing else.
+  WorldMapFrame:HookScript("OnShow", function()
+    if FS.itemsWaiting then FS.Bump(true) else G.Refresh() end
+  end)
+  FS.IsMapOpen = function() return WorldMapFrame:IsShown() and true or false end
   WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
   G.Refresh()
+end
+
+------------------------------------------------------------------------------
+-- Diagnostics: time spent in the map work, and how the shown zone's mobs rate. In /ult farm and
+-- saved (UltimateDB.farmDiag) for a look after a /reload.
+------------------------------------------------------------------------------
+G.perf = { since = GetTime() }
+local clock = debugprofilestop or function() return 0 end
+local function timed(name, fn)
+  return function(...)
+    local t = clock()
+    local a, b, c = fn(...)
+    local p = G.perf[name] or { n = 0, ms = 0, max = 0 }
+    local d = clock() - t
+    p.n, p.ms = p.n + 1, p.ms + d
+    if d > p.max then p.max = d end
+    G.perf[name] = p
+    return a, b, c
+  end
+end
+G.Refresh = timed("refresh", G.Refresh)
+G.Score = timed("score", G.Score)
+G.UpdateHover = timed("hover", G.UpdateHover)
+G.Timed = timed
+
+function G.Diagnose()
+  local d = { at = time(), level = ns.Safe.read(UnitLevel, "player"), mapID = G.mapID, generation = FS.generation,
+    pendingItems = FS.PendingItems(), sellPrices = 0, perf = {}, grades = {} }
+  for _ in pairs(ns.global and ns.global.farmSellPrices or {}) do d.sellPrices = d.sellPrices + 1 end
+  local yard = ns.FarmTargeting.Yardstick() or {}
+  d.yardstick = { n = #yard, q1 = yard[math.ceil(#yard * 0.25)], median = yard[math.ceil(#yard * 0.5)],
+    q3 = yard[math.ceil(#yard * 0.75)], max = yard[#yard] }
+  local z = G.mapID and G.byMap and G.byMap[G.mapID]
+  if z then
+    local counts = {}
+    for _, e in ipairs(z.entries) do counts[#counts + 1] = e.count end
+    table.sort(counts)
+    for i, e in ipairs(z.entries) do
+      if i > 12 then break end
+      d.grades[#d.grades + 1] = { name = e.name, perKill = e.price, count = e.count,
+        grade = G.MobGrade(e, yard, counts) }
+    end
+  end
+  local secs = GetTime() - G.perf.since
+  for name, p in pairs(G.perf) do
+    if type(p) == "table" then
+      d.perf[name] = { n = p.n, ms = math.floor(p.ms + 0.5), max = math.floor(p.max * 10 + 0.5) / 10,
+        perSec = math.floor(p.n / math.max(1, secs) * 10 + 0.5) / 10 }
+    end
+  end
+  d.seconds = math.floor(secs)
+  if ns.global then ns.global.farmDiag = d end
+  return d
 end
 
 -- /ult farm: what Gold Farming reads, to check it in game.
@@ -858,6 +915,18 @@ function G.Report()
     end
   end
   ns:Print(string.format(L.FARM_REPORT_GRADED, graded, #best > 0 and table.concat(best, ", ") or L.FARM_NONE))
+  local d = G.Diagnose()
+  local y = d.yardstick
+  ns:Print(string.format("  Rating yardstick: %d mobs, quartiles %s / %s / %s, max %s; items waiting %d, vendor prices kept %d",
+    y.n, tostring(y.q1 and math.floor(y.q1)), tostring(y.median and math.floor(y.median)),
+    tostring(y.q3 and math.floor(y.q3)), tostring(y.max and math.floor(y.max)), d.pendingItems, d.sellPrices))
+  local tally = {}
+  for _, g in ipairs(d.grades) do tally[g.grade] = (tally[g.grade] or 0) + 1 end
+  ns:Print(string.format("  This map's mobs: %d excellent, %d good, %d fair, %d poor", tally.excellent or 0,
+    tally.good or 0, tally.fair or 0, tally.poor or 0))
+  for name, p in pairs(d.perf) do
+    ns:Print(string.format("  %s: %d calls (%.1f/s), %d ms total, %.1f ms max", name, p.n, p.perSec, p.ms, p.max))
+  end
 end
 
 -- The world map's own filter menu (the magnifying glass at its top).

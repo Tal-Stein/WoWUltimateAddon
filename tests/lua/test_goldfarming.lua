@@ -449,3 +449,21 @@ describe("Map performance", function()
     FS.MobPoints = mp
   end)
 end)
+
+describe("Item prices arriving", function()
+  it("don't redo the ratings while the map is open, only when it next opens", function()
+    open(1436)
+    local scores = (G.perf.score and G.perf.score.n) or 0
+    FS.itemsWaiting = true
+    __advance(5, true)
+    assertEq((G.perf.score and G.perf.score.n) or 0, scores, "nothing while open")
+    WorldMapFrame:GetScript("OnShow")()
+    assertTrue(G.perf.score.n > scores, "taken in when the map opens")
+    assertFalse(FS.itemsWaiting)
+  end)
+  it("/ult farm saves its diagnostics", function()
+    local d = G.Diagnose()
+    assertEq(UltimateDB.farmDiag, d)
+    assertTrue(d.perf.refresh.n > 0)
+  end)
+end)

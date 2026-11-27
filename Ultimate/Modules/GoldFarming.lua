@@ -564,6 +564,56 @@ function G.Attach()
   G.Refresh()
 end
 
+-- /ult farm: what Gold Farming reads, to check it in game.
+function G.Report()
+  local yn = function(v) return v and L.FARM_YES or L.FARM_NO end
+  local st = FS.Status()
+  ns:Print(L.FARM_REPORT_TITLE)
+  ns:Print(string.format(L.FARM_REPORT_SOURCES, st.questie or L.FARM_NONE, st.questieDB or L.FARM_NONE,
+    yn(st.gathermate), yn(st.auctionator)))
+  local skills = FS.Skills()
+  local parts = {}
+  for _, prof in ipairs({ "herbalism", "mining", "skinning", "fishing" }) do
+    if skills[prof] then parts[#parts + 1] = L["PROF_" .. prof] .. " " .. skills[prof] end
+  end
+  ns:Print(string.format(L.FARM_REPORT_SKILLS, #parts > 0 and table.concat(parts, ", ") or L.FARM_NONE))
+  local zones, source = FS.Zones()
+  local nodes, nzones, copper, peace = 0, 0, 0, 0
+  for _, counts in pairs(zones) do
+    nzones = nzones + 1
+    for name, n in pairs(counts) do
+      nodes = nodes + n
+      if name == "Copper Vein" then copper = copper + n end
+      if name == "Peacebloom" then peace = peace + n end
+    end
+  end
+  ns:Print(string.format(L.FARM_REPORT_NODES, nodes, nzones, source or L.FARM_NONE, copper, peace))
+  local function price(id)
+    local p, src = FS.Price(id)
+    return p and (money(p) .. " (" .. src .. ")") or L.FARM_NONE
+  end
+  ns:Print(string.format(L.FARM_REPORT_PRICES, price(2770), price(2447)))
+  local mobs, kills, coin, drops, skins = 0, 0, 0, 0, 0
+  for _, s in pairs(ns.KillLog.Stats()) do
+    mobs, kills, coin = mobs + 1, kills + (s.kills or 0), coin + (s.copper or 0)
+    for _, q in pairs(s.items or {}) do drops = drops + q end
+    skins = skins + (s.skinned or 0)
+  end
+  ns:Print(string.format(L.FARM_REPORT_KILLS, mobs, kills, money(coin), drops, skins, ns.KillLog.Pace().n or 0))
+  local restricted = C_CombatLog and C_CombatLog.IsCombatLogRestricted and ns.Safe.read(C_CombatLog.IsCombatLogRestricted)
+  ns:Print(string.format(L.FARM_REPORT_LOG, restricted and L.FARM_CLOSED or L.FARM_OPEN))
+  G.Invalidate()
+  G.Score()
+  local graded, best = 0, {}
+  for _, z in ipairs(G.scores) do
+    if z.grade then
+      graded = graded + 1
+      if #best < 3 then best[#best + 1] = mapName(z.mapID) .. " (" .. L["FARM_GRADE_" .. z.grade] .. ")" end
+    end
+  end
+  ns:Print(string.format(L.FARM_REPORT_GRADED, graded, #best > 0 and table.concat(best, ", ") or L.FARM_NONE))
+end
+
 -- The world map's own filter menu (the magnifying glass at its top).
 local function installMapMenu()
   local menu = _G.Menu

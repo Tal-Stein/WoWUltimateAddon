@@ -42,6 +42,9 @@ local commands = {
       ns.ErrorLog:Report()
     end
   end,
+  farm = function()
+    if ns.GoldFarming then ns.GoldFarming.Report() end
+  end,
   help = function() ns:Print(L.SLASH_HELP) end,
 }
 

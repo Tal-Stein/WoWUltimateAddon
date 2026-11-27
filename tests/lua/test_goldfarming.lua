@@ -298,3 +298,19 @@ describe("Gold goals", function()
     ns.Print = oldPrint
   end)
 end)
+
+describe("/ult farm", function()
+  it("reports what Gold Farming reads, for checking it in game", function()
+    local out = {}
+    local oldPrint = ns.Print
+    ns.Print = function(_, msg) out[#out + 1] = msg end
+    UltimateDB.farmMobs = { [116] = { kills = 12, copper = 600, items = { [2589] = 3 }, skins = {}, maps = {} } }
+    SlashCmdList.ULTIMATE("farm")
+    ns.Print = oldPrint
+    local text = table.concat(out, "\n")
+    assertTrue(text:find("Herbalism 75", 1, true) ~= nil, text)
+    assertTrue(text:find("Copper Vein", 1, true) ~= nil, text)
+    assertTrue(text:find("12 kills", 1, true) ~= nil, text)
+    assertTrue(text:find("Auctionator", 1, true) ~= nil, text)
+  end)
+end)

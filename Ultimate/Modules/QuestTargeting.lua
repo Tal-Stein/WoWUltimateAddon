@@ -145,28 +145,16 @@ local function scanReport()
 end
 
 local function checkEnemyPlates()
-  if ns.Nameplates:EnemyPlatesOn() or not o().prompts.enemyPlates or not StaticPopup_Show then return end
-  StaticPopup_Show("ULTIMATE_ENEMY_PLATES")
+  if ns.Nameplates:EnemyPlatesOn() or not o().prompts.enemyPlates then return end
+  ns.Dialog.Show("enemyPlates", L.PLATES_PROMPT, {
+    accept = { label = L.ENABLE, fn = function()
+      ns.Combat:Run("cvar.plates", function() SetCVar("nameplateShowEnemies", "1") end)
+    end },
+    cancel = L.NOT_NOW,
+    alt = { label = L.DONT_ASK, fn = function() ns.db.questTargeting.prompts.enemyPlates = false end },
+  })
 end
 
-if StaticPopupDialogs then
-  StaticPopupDialogs.ULTIMATE_ENEMY_PLATES = {
-    text = L.PLATES_PROMPT,
-    button1 = L.ENABLE,
-    button2 = L.NOT_NOW,
-    button3 = L.DONT_ASK,
-    OnAccept = function()
-      ns.Combat:Run("cvar.plates", function() SetCVar("nameplateShowEnemies", "1") end)
-    end,
-    OnAlt = function() ns.db.questTargeting.prompts.enemyPlates = false end,
-    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-  }
-  StaticPopupDialogs.ULTIMATE_QUESTIEDB = {
-    text = L.QUESTIEDB_PROMPT,
-    button1 = OKAY or "Okay",
-    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-  }
-end
 
 QT.def = ns.Modules:Register({
   key = "questTargeting",
@@ -190,7 +178,7 @@ QT.def = ns.Modules:Register({
     ns.Nameplates:AddListener("questTargeting", { onAdded = QT.OnMobAdded })
     ns:On("ULT_DEBUG_SCAN", QT, scanReport)
     ns:On("ULT_QUESTIEDB_UNAVAILABLE", QT, function()
-      if StaticPopup_Show then StaticPopup_Show("ULTIMATE_QUESTIEDB") end
+      ns.Dialog.Show("questieDB", L.QUESTIEDB_PROMPT, { cancel = false })
     end)
     C_Timer.After(5, checkEnemyPlates)
   end,

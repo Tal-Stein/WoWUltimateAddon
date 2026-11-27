@@ -146,3 +146,38 @@ describe("Zone values with mobs", function()
     assertNil(byMap[1411])
   end)
 end)
+
+describe("Ranking views", function()
+  local function zone(id, d, grade) return { mapID = id, value = d, density = d, grade = grade } end
+  local list = { zone(1, 900, "excellent"), zone(2, 500, "good"), zone(3, 300, "fair"), zone(4, 100, "poor"), zone(5, 0) }
+  local minutes = { [1] = 25, [2] = 4, [3] = 0, [4] = 8 }
+  local levels = { [1] = { 30, 40 }, [2] = { 10, 20 }, [3] = { 1, 10 }, [4] = { 15, 25 } }
+  local ctx = {
+    minutes = function(id) return minutes[id] end,
+    levels = function(id) local l = levels[id]; if l then return l[1], l[2] end end,
+    level = 18,
+  }
+  local function ids(l) local t = {} for _, z in ipairs(l) do t[#t + 1] = z.mapID end return t end
+
+  it("best: every graded zone, most valuable first", function()
+    assertEq(ids(FM.View(list, "best", ctx)), { 1, 2, 3, 4 })
+  end)
+  it("near: graded zones within ten minutes, most valuable first, with the travel time", function()
+    local l = FM.View(list, "near", ctx)
+    assertEq(ids(l), { 2, 3, 4 })
+    assertEq(l[1].minutes, 4)
+  end)
+  it("near: reaches further when little is close", function()
+    minutes[2], minutes[4] = 15, 18
+    assertEq(ids(FM.View(list, "near", ctx)), { 2, 3, 4 })
+    minutes[2], minutes[4] = 4, 8
+  end)
+  it("near: knows nothing without your position", function()
+    assertEq(ids(FM.View(list, "near", { minutes = function() end })), {})
+  end)
+  it("levelling: zones whose level range suits you", function()
+    local l = FM.View(list, "level", ctx)
+    assertEq(ids(l), { 2, 4 })
+    assertEq({ l[1].minLevel, l[1].maxLevel }, { 10, 20 })
+  end)
+end)

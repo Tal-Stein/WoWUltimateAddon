@@ -80,6 +80,13 @@ local function eachQuestieSpawn(fn, onlyArea)
   return true
 end
 
+-- Questie's name lookup (IdsByName) builds an index over every object the first time; done in one
+-- go that can stall the game ("script ran too long"). Start it in small batches early instead.
+function FS.Prepare()
+  local objects = questieObjects()
+  if objects and type(objects.BuildNameIndexAsync) == "function" then pcall(objects.BuildNameIndexAsync) end
+end
+
 function FS.SourceKey()
   return table.concat({ meta("Questie", "Version") or "-", meta("QuestieDB", "Version") or "-",
     tostring(ns.GatherNodesVersion) }, "|")

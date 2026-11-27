@@ -13,6 +13,7 @@ LibQuestieDB = {
   RequireContract = function() return true end,
   Object = {
     IdsByName = function(name) lookups = lookups + 1; return IDS[name] end,
+    BuildNameIndexAsync = function() __asyncIndex = true end,
     Get = function(id, field) if field == "spawns" then return OBJECTS[id] end end,
   },
 }
@@ -48,6 +49,12 @@ end }
 
 __boot(nil, {})
 local FS = ns.FarmSources
+
+describe("Questie's name index", function()
+  it("is built a little at a time from login, so the map never hangs building it", function()
+    assertTrue(__asyncIndex)
+  end)
+end)
 
 describe("Your professions", function()
   it("reads gathering skill levels from the game", function()

@@ -17,6 +17,7 @@ Requires **Questie**, including its **QuestieDB**.
 | **Rare Scanner** | Always-on alert for rare, rare-elite and world-boss mobs, plus your own watch list. Rares go to the front of the target bar. |
 | **Quest Items** | Buttons for usable quest items, shown only when relevant (or always). You can bind them to keys, drag them to action bars, and shift-click to pin. |
 | **Flight Times** | Hover a destination on the flight master's map to see how long the flight takes, beside its name. In the air, a bar like the game's breath bar counts down to landing. Your own flights are timed and remembered for all your characters. |
+| **Gold Farming** | The world map grades each zone by what your gathering professions earn there at your realm's auction prices, tinting zones in the map's own highlight and listing the best ones for you beside the map. Zone maps pin every herb and ore node you can gather. Toggle it from the world map's filter menu. |
 
 Blizzard doesn't allow add-ons to target anything without a key press or click, and Ultimate
 doesn't try to get around that. The add-on chooses *what* your key targets; you press it.
@@ -32,7 +33,14 @@ doesn't try to get around that. The add-on chooses *what* your key targets; you 
 The built-in flight times (`Ultimate/Data/FlightTimes.lua`) come from
 [RestedXP Guides](https://www.restedxp.com) and are shared under
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/), like the original.
-Regenerate them with `python scripts/import_flight_times.py <RXPGuides/DB/forever/flightData.lua>`.
+Refresh them with `python scripts/import_flight_times.py --latest`; a weekly GitHub Action does
+this and opens a pull request when RestedXP changes them.
+
+Gold Farming copies no third-party data. It reads at runtime from the add-ons that own it, so
+updating them updates the map:
+- **Node locations:** Questie's Forever database, and GatherMate2's when it's installed.
+- **Prices:** Auctionator's scans of your realm, otherwise the vendor price.
+- **Node facts:** each node's required skill and item ID live in `Ultimate/Data/GatherNodes.lua`.
 
 ## Development
 

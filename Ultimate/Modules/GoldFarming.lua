@@ -194,11 +194,80 @@ local function panelLines()
   return lines
 end
 
+------------------------------------------------------------------------------
+-- Gold goal (per character, UltimateCharDB.farmGoal in copper)
+------------------------------------------------------------------------------
+local function goal() return type(UltimateCharDB) == "table" and UltimateCharDB.farmGoal or nil end
+
+-- Your best timed rate among the mobs on show: copper per hour and the mob's name.
+local function bestRate(zones)
+  local best, name
+  for _, z in ipairs(zones) do
+    for _, e in ipairs(z.entries or {}) do
+      local h = e.kind == "mob" and FM.PerHour(e.price, ns.KillLog.Pace())
+      if h and (not best or h > best) then best, name = h, e.name end
+    end
+  end
+  return best, name
+end
+
+local function goalLine()
+  local target = goal()
+  if not target then return nil end
+  local zoneID = (G.mapType == mapTypes().Zone) and G.mapID or G.hover
+  local zones = zoneID and G.byMap[zoneID] and { G.byMap[zoneID] } or G.viewList or {}
+  local rate, mob = bestRate(zones)
+  local g = FM.Goal(target, ns.Safe.read(GetMoney), rate)
+  local text = string.format(L.FARM_GOAL_LINE, money(target), money(g.left))
+  if g.hours then text = text .. "  |cff808080" .. string.format(L.FARM_GOAL_TIME, FM.FormatHours(g.hours), mob) .. "|r" end
+  return text
+end
+
+function G.CheckGoal()
+  local target = goal()
+  if not target then return end
+  if FM.Goal(target, ns.Safe.read(GetMoney)).reached then
+    UltimateCharDB.farmGoal = nil
+    ns:Print(L.FARM_GOAL_REACHED)
+    if PlaySound and SOUNDKIT and SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01 then pcall(PlaySound, SOUNDKIT.UI_QUEST_ROLLING_FORWARD_01) end
+  end
+  G.RenderPanel()
+end
+
+local function goalDialog()
+  if type(StaticPopupDialogs) ~= "table" then return nil end
+  StaticPopupDialogs.ULTIMATE_FARM_GOAL = StaticPopupDialogs.ULTIMATE_FARM_GOAL or {
+    text = L.FARM_GOAL_PROMPT,
+    button1 = ACCEPT or "Accept",
+    button2 = CANCEL or "Cancel",
+    hasMoneyInputFrame = 1,
+    OnAccept = function(dialog)
+      local box = dialog and (dialog.MoneyInputFrame or dialog.moneyInputFrame)
+      local copper = box and MoneyInputFrame_GetCopper and ns.Safe.read(MoneyInputFrame_GetCopper, box)
+      if type(UltimateCharDB) == "table" and type(copper) == "number" and copper > 0 then
+        UltimateCharDB.farmGoal = copper
+        G.CheckGoal()
+      end
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+  }
+  return "ULTIMATE_FARM_GOAL"
+end
+
+function G.SetGoal()
+  local name = goalDialog()
+  if name and StaticPopup_Show then StaticPopup_Show(name) end
+end
+
 function G.RenderPanel()
   local panel = G.panel
   if not panel then return end
   if not active() or not G.scores then panel:Hide(); return end
   local lines = panelLines()
+  local gl = goalLine()
+  if gl then lines[#lines + 1] = gl end
   local width = 0
   for i, fs in ipairs(panel.lines) do
     fs:SetText(lines[i] or "")
@@ -217,7 +286,7 @@ local function buildPanel(parent)
   if type(level) == "number" then f:SetFrameLevel(level + 100) end
   f:EnableMouse(true)
   f.lines = {}
-  for i = 1, PANEL_LINES do
+  for i = 1, PANEL_LINES + 1 do -- the last for the gold goal
     local fs = f:CreateFontString(nil, "OVERLAY", i == 1 and "GameFontNormal" or "GameFontHighlightSmall")
     fs:SetJustifyH("LEFT")
     fs:SetPoint("TOPLEFT", f, "TOPLEFT", 10, i == 1 and -8 or (-10 - 16 - (i - 2) * 14))
@@ -243,6 +312,14 @@ function G.ShowMenu(owner)
       for _, v in ipairs(FM.VIEWS) do
         root:CreateRadio(L["FARM_VIEW_" .. v], function() return view() == v end,
           function() ns.Menu.Set("farming.view", v) end, v)
+      end
+      root:CreateDivider()
+      root:CreateButton(L.FARM_GOAL_SET, G.SetGoal)
+      if goal() then
+        root:CreateButton(L.FARM_GOAL_CLEAR, function()
+          UltimateCharDB.farmGoal = nil
+          G.RenderPanel()
+        end)
       end
     end,
     hide = { label = L.FARM_MENU_HIDE, fn = function()
@@ -504,6 +581,7 @@ G.def = ns.Modules:Register({
       FS.OnPricesChanged(function() G.Refresh() end)
     end
     ns:On("SKILL_LINES_CHANGED", G, function() G.Refresh() end)
+    ns:On("PLAYER_MONEY", G, function() G.CheckGoal() end)
     ns:On("ULT_SETTING_CHANGED", G, function(_, path)
       if path and path:find("^farming") then G.Refresh() end
     end)

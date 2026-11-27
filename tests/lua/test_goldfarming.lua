@@ -241,3 +241,45 @@ describe("Gold farming views", function()
     choose("best")
   end)
 end)
+
+describe("Gold goals", function()
+  StaticPopupDialogs = StaticPopupDialogs or {}
+  local shownPopup
+  StaticPopup_Show = function(name) shownPopup = name end
+  MoneyInputFrame_GetCopper = function(f) return f.copper end
+  local money = 400000
+  GetMoney = function() return money end
+  local printed = {}
+  local oldPrint = ns.Print
+  ns.Print = function(_, msg) printed[#printed + 1] = msg end
+
+  it("sets a goal from the panel's menu with the game's money box", function()
+    G.ShowMenu(G.panel)
+    __menuEntry(ns.L.FARM_GOAL_SET).a()
+    assertEq(shownPopup, "ULTIMATE_FARM_GOAL")
+    local dialog = StaticPopupDialogs.ULTIMATE_FARM_GOAL
+    assertTrue(dialog.hasMoneyInputFrame ~= nil)
+    dialog.OnAccept({ MoneyInputFrame = { copper = 1000000 } })
+    assertEq(UltimateCharDB.farmGoal, 1000000)
+  end)
+  it("shows what's left, and how long at your best timed mob", function()
+    open(1436)
+    local text = panelText()
+    assertTrue(text:find("60g 0s 0c to go", 1, true) ~= nil, text)
+    -- Defias Bandit: 50c per kill, 30 s a kill -> 60s/hr -> 600000c takes 100h
+    assertTrue(text:find("100h", 1, true) ~= nil, text)
+  end)
+  it("celebrates and clears the goal once you have the gold", function()
+    money = 1000000
+    __fire("PLAYER_MONEY")
+    assertNil(UltimateCharDB.farmGoal)
+    assertEq(printed[#printed], ns.L.FARM_GOAL_REACHED)
+  end)
+  it("can be cleared from the menu", function()
+    UltimateCharDB.farmGoal = 5000000
+    G.ShowMenu(G.panel)
+    __menuEntry(ns.L.FARM_GOAL_CLEAR).a()
+    assertNil(UltimateCharDB.farmGoal)
+    ns.Print = oldPrint
+  end)
+end)

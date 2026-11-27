@@ -127,6 +127,9 @@ Work through it once after installing, with `/ult debug` on so errors show in ch
 - [ ] Right-click the panel: three views (Best for you / Best near you / Best while levelling).
       "Near you" lists zones with "here" or "N min" (faster when mounted); "Levelling" shows each
       zone's level range and only zones that suit your level. The map tints only the view's zones.
+- [ ] Right-click the panel > Set a gold goal...: the game's money box opens. After accepting, the
+      panel's last line shows "Goal 100g: 62g to go", plus "~3h at <mob>" once you have timed
+      kills. Reaching the amount prints "Gold goal reached!" and clears it. "Clear gold goal" too.
 
 ## Feature switches
 - [ ] Each feature's page (Quest Targeting, Rare Scanner, Quest Items, Focused Chat, Quest

@@ -167,3 +167,20 @@ function FM.View(list, view, ctx)
   end
   return out
 end
+
+-- A gold goal (copper) against the money you have: { left, reached, hours } (hours only when a
+-- gold-per-hour rate is known).
+function FM.Goal(goal, money, perHour)
+  local left = math.max(0, (goal or 0) - (money or 0))
+  local hours = (perHour and perHour > 0 and left > 0) and left / perHour or nil
+  return { left = left, reached = left == 0, hours = hours }
+end
+
+-- "3h", "1h 30m", "15m"; at least a minute.
+function FM.FormatHours(hours)
+  local mins = math.max(1, math.floor(hours * 60 + 0.5))
+  local h, m = math.floor(mins / 60), mins % 60
+  if h > 0 and m > 0 then return string.format("%dh %dm", h, m) end
+  if h > 0 then return string.format("%dh", h) end
+  return string.format("%dm", m)
+end

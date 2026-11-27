@@ -390,6 +390,7 @@ local bumpQueued
 function FS.Bump(now)
   local function bump()
     bumpQueued = false
+    FS.itemsWaiting = false
     FS.generation = FS.generation + 1
     ns:Fire("ULT_FARM_DATA")
   end
@@ -541,10 +542,23 @@ local function sellPrice(itemID)
   return nil
 end
 
+-- Items arriving don't redo the ratings while the map is open (they arrive by the hundred, and
+-- each redo is felt there): they're taken in the next time it opens, or once it's closed.
+FS.itemsWaiting = false
+function FS.IsMapOpen() return false end -- (Modules/GoldFarming.lua says)
 function FS.OnItemInfo(itemID)
   if not pending[itemID] then return end
   pending[itemID] = nil
-  if sellPrice(itemID) then FS.Bump() end
+  if sellPrice(itemID) then
+    FS.itemsWaiting = true
+    if not FS.IsMapOpen() then FS.Bump() end
+  end
+end
+
+function FS.PendingItems()
+  local n = 0
+  for _ in pairs(pending) do n = n + 1 end
+  return n
 end
 
 -- copper, "auction"/"vendor", age in days (auction only); nil when nothing is known. Kept until

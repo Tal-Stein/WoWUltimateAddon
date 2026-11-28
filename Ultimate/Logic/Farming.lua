@@ -256,11 +256,19 @@ end
 FM.MOB_BELOW = 5 -- mobs up to this many levels below you still pay (coin, loot, some experience)
 FM.MOB_ABOVE = 3 -- and up to this many above are still safe to farm
 
+FM.ZONE_MIN_SPAWNS = 3 -- a mob needs this many spawns in a zone to rate the zone
+
+local GRADE_ORDER = { excellent = 1, good = 2, fair = 3, poor = 4 }
+
 -- Zones by the mobs at your level that live there (index: { [uiMapID] = { [npcID] = spawns } },
 -- levels: { [npcID] = { min, max } } from Questie; values: { [npcID] = FM.MobValue } from your own
--- kills; names(npcID) -> name). Graded by how many suitable mobs live there; each entry carries
--- its gold per kill once you've farmed it (price, kills), farmed mobs listed first.
-function FM.MobZones(index, levels, level, values, names, area)
+-- kills; names(npcID) -> name). Each entry carries its gold per kill once known (price, kills),
+-- valued mobs listed first.
+-- With yard (sorted gold per kill of the mobs around your level), a zone is rated like the mob
+-- areas drawn in it: by its best valued mob with at least ZONE_MIN_SPAWNS spawns there (.best);
+-- zones with none valued are rated by how many mobs live there, at most fair. Without yard, all
+-- are rated by how many mobs live there.
+function FM.MobZones(index, levels, level, values, names, area, yard)
   local list = {}
   for mapID, mobs in pairs(index) do
     local entries, count = {}, 0
@@ -283,8 +291,12 @@ function FM.MobZones(index, levels, level, values, names, area)
         return a.npcID < b.npcID
       end)
       local size = area and area(mapID)
+      local best
+      for _, e in ipairs(entries) do
+        if e.price and e.count >= FM.ZONE_MIN_SPAWNS and (not best or e.price > best) then best = e.price end
+      end
       list[#list + 1] = { mapID = mapID, value = count, density = (size and size > 0) and count / size or count,
-        entries = entries }
+        entries = entries, best = best }
     end
   end
   table.sort(list, function(a, b)
@@ -292,6 +304,22 @@ function FM.MobZones(index, levels, level, values, names, area)
     return a.mapID < b.mapID
   end)
   FM.Grade(list)
+  if yard and #yard > 0 then
+    for _, z in ipairs(list) do
+      if z.best then
+        z.grade = FM.RankGrade(z.best, yard)
+      elseif z.grade == "excellent" or z.grade == "good" then
+        z.grade = "fair"
+      end
+    end
+    table.sort(list, function(a, b)
+      local ga, gb = GRADE_ORDER[a.grade] or 5, GRADE_ORDER[b.grade] or 5
+      if ga ~= gb then return ga < gb end
+      if (a.best or 0) ~= (b.best or 0) then return (a.best or 0) > (b.best or 0) end
+      if a.density ~= b.density then return a.density > b.density end
+      return a.mapID < b.mapID
+    end)
+  end
   return list
 end
 

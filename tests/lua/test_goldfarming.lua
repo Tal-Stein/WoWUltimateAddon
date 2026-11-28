@@ -431,6 +431,22 @@ describe("Mobs lens", function()
     assertNil(G.hoverArea)
     assertTrue(hidden)
   end)
+  it("drop the tooltip when the map closes with the cursor on one", function()
+    local oldCursor = WorldMapFrame.GetNormalizedCursorPosition
+    WorldMapFrame.GetNormalizedCursorPosition = function() return 0.41, 0.405 end
+    G.UpdateHover()
+    WorldMapFrame.GetNormalizedCursorPosition = oldCursor
+    assertTrue(G.hoverArea ~= nil)
+    local hidden = false
+    local oldHide, oldOwner = GameTooltip.Hide, GameTooltip.GetOwner
+    GameTooltip.Hide = function() hidden = true end
+    GameTooltip.GetOwner = function() return G.pinLayer end
+    WorldMapFrame:GetScript("OnHide")(WorldMapFrame)
+    GameTooltip.Hide, GameTooltip.GetOwner = oldHide, oldOwner
+    assertNil(G.hoverArea)
+    assertTrue(hidden)
+    WorldMapFrame:GetScript("OnShow")(WorldMapFrame)
+  end)
   it("are hidden in the gathering lens", function()
     ns.Menu.Set("farming.lens", "gathering")
     open(1436)

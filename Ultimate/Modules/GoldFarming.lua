@@ -845,7 +845,12 @@ function G.Attach()
     if FS.itemsWaiting then FS.Bump(true) else G.Refresh() end
   end)
   FS.IsMapOpen = function() return WorldMapFrame:IsShown() and true or false end
-  WorldMapFrame:HookScript("OnHide", function() if G.panel then G.panel:Hide() end end)
+  -- Closing the map stops the hover checks, so the area tooltip goes with it (else it stays on
+  -- the cursor).
+  WorldMapFrame:HookScript("OnHide", function()
+    if G.panel then G.panel:Hide() end
+    setHoverArea(nil)
+  end)
   G.Refresh()
 end
 

@@ -3,4 +3,4 @@
 *.png binary
 *.tga binary
 *.blp binary
-*.bat text eol=crlf
+*.bat -text

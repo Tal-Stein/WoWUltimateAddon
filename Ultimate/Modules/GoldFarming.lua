@@ -136,7 +136,8 @@ function G.Score()
           return v
         end })
         G.scores = FM.MobZones(index, levels, ns.Safe.read(UnitLevel, "player") or 1,
-          setmetatable({}, { __index = function(_, id) return values[id] or nil end }), FS.NpcName, area)
+          setmetatable({}, { __index = function(_, id) return values[id] or nil end }), FS.NpcName, area,
+          ns.FarmTargeting.Yardstick())
       else
         G.scores, G.building = {}, true
       end
@@ -557,8 +558,7 @@ end
 ------------------------------------------------------------------------------
 -- Mob areas (zone maps, Mobs lens): each mob's spawn points grouped into areas (FM.Clusters), each
 -- drawn once as a soft fill with an outline, the way the game marks quest areas, in the color of
--- the mob's rating: its recorded gold per kill against your best, or (not farmed yet) how many
--- live here against the zone's most common mob. Hovering an area names the mob; the map still
+-- the mob's rating (G.MobGrade), the same one the zone's own rating comes from. Hovering an area names the mob; the map still
 -- takes clicks through it.
 ------------------------------------------------------------------------------
 local function areaEnter(self)
@@ -599,10 +599,12 @@ local function areaFrame(i)
 end
 
 -- A mob's rating: by its gold per kill among the mobs around your level, or (no value known) by
--- how many live here among the zone's mobs.
+-- how many live here among the zone's mobs, at most fair (as zones are rated, FM.MobZones).
 function G.MobGrade(e, yard, counts)
   if e.price then return FM.RankGrade(e.price, yard) or "fair" end
-  return FM.RankGrade(e.count, counts) or "fair"
+  local g = FM.RankGrade(e.count, counts) or "fair"
+  if g == "excellent" or g == "good" then g = "fair" end
+  return g
 end
 
 -- Areas per mob on a map, worked out once (until the scores change).

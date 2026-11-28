@@ -238,6 +238,40 @@ describe("Mob zones", function()
     assertEq(list[1].mapID, 1436)
     assertEq(list[1].grade, "excellent")
   end)
+
+  describe("with gold values to rate against", function()
+    -- A big sparse zone with a valuable mob, a dense zone of cheap mobs, one with nothing known.
+    local idx = {
+      [10] = { [1] = 6, [2] = 4 },   -- sparse: 10 mobs over a large area
+      [20] = { [3] = 80 },           -- dense, cheap
+      [30] = { [4] = 50 },           -- dense, no value known
+      [40] = { [5] = 1, [3] = 5 },   -- a lone valuable spawn, otherwise cheap
+    }
+    local lv = { [1] = { 10, 10 }, [2] = { 10, 10 }, [3] = { 10, 10 }, [4] = { 10, 10 }, [5] = { 10, 10 } }
+    local vals = { [1] = { perKill = 300, kills = 30 }, [3] = { perKill = 10, kills = 30 },
+      [5] = { perKill = 900, kills = 30 } }
+    local sizes = { [10] = 100, [20] = 1, [30] = 1, [40] = 1 }
+    local yard = { 5, 10, 20, 50, 100, 200, 300, 400 }
+    local zl = FM.MobZones(idx, lv, 10, vals, function(id) return "npc" .. id end,
+      function(m) return sizes[m] end, yard)
+    local by = {}
+    for _, z in ipairs(zl) do by[z.mapID] = z end
+
+    it("rates a zone by its best mob's gold, as its areas are rated", function()
+      assertEq(by[10].grade, "excellent", "a sparse zone with a valuable mob isn't poor")
+      assertEq(by[20].grade, "poor", "many cheap mobs")
+      assertEq(by[10].best, 300)
+    end)
+    it("doesn't let a lone spawn rate the zone", function()
+      assertEq(by[40].grade, "poor")
+    end)
+    it("rates zones of mobs not valued yet no higher than fair", function()
+      assertEq(by[30].grade, "fair")
+    end)
+    it("lists valued zones best first", function()
+      assertEq(zl[1].mapID, 10)
+    end)
+  end)
 end)
 
 describe("Mob areas from spawn points", function()

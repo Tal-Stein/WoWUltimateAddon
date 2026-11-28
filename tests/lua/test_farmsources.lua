@@ -303,3 +303,50 @@ describe("Data sources", function()
     assertFalse(s.gathermate)
   end)
 end)
+
+describe("Fetching prices", function()
+  it("lists the items whose prices aren't known yet, those that make up a kill's value first", function()
+    local d = { drops = { [1] = { 10, 3000, 11, 200 }, [2] = { 12, 100, 10, 600 } }, skins = { [1] = { 13, 900 } } }
+    local q = FS.PriceQueue(d, { [12] = 0 })
+    assertEq(#q, 3)
+    assertTrue(q[3] == 11, "the rare drop last")
+    local set = {}
+    for _, id in ipairs(q) do set[id] = true end
+    assertTrue(set[10] and set[13] and set[11] and not set[12], "known prices left out, each item once")
+  end)
+  it("asks the game for them a batch at a time, out of combat, and redoes the ratings at the end", function()
+    for _ = 1, 30 do __advance(5, true) end -- the fetch started at login runs to its end
+    assertFalse(FS.Prefetching())
+    local requested = {}
+    C_Item.RequestLoadItemDataByID = function(id) requested[#requested + 1] = id end
+    UltimateDB.farmSellPrices = {}
+    FS.PREFETCH_BATCH = 1
+    __inCombat = false
+    local gen = FS.generation
+    FS.PrefetchPrices()
+    assertEq(#requested, 1, "one batch")
+    __inCombat = true
+    __advance(FS.PREFETCH_EVERY, true)
+    assertEq(#requested, 1, "waits out combat")
+    __inCombat = false
+    __advance(FS.PREFETCH_EVERY, true)
+    assertEq(#requested, 2)
+    -- an answer meanwhile doesn't redo the ratings on its own
+    local itemInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(id)
+      if id == requested[1] then return "Thing", nil, 1, 1, 1, "", "", 1, "", 0, 7 end
+      return itemInfo(id)
+    end
+    __fire("GET_ITEM_INFO_RECEIVED", requested[1], true)
+    __advance(3, true)
+    assertEq(FS.generation, gen, "not while fetching")
+    for _ = 1, 10 do __advance(FS.PREFETCH_EVERY, true) end
+    assertEq(#requested, 3, "all of them")
+    __advance(10, true)
+    assertTrue(FS.generation > gen, "once done")
+    assertEq(UltimateDB.farmSellPrices[requested[1]], 7, "kept for good")
+    assertFalse(FS.Prefetching())
+    C_Item.GetItemInfo = itemInfo
+    FS.PREFETCH_BATCH = 50
+  end)
+end)

@@ -92,6 +92,7 @@ function FS.Prepare()
   if C_Timer then
     C_Timer.After(10, function() FS.MobIndex() end)
     C_Timer.After(20, function() FS.Forever() end)
+    C_Timer.After(40, function() FS.PrefetchPrices() end) -- after ForeverDB has been read
   end
 end
 
@@ -553,8 +554,87 @@ function FS.OnItemInfo(itemID)
   pending[itemID] = nil
   if sellPrice(itemID) then
     FS.itemsWaiting = true
-    if not FS.IsMapOpen() then FS.Bump() end
+    if not FS.IsMapOpen() and not FS.Prefetching() then FS.Bump() end
   end
+end
+
+------------------------------------------------------------------------------
+-- Fetching prices: a drop counts toward a mob's value only once its price is known, and the game
+-- tells an item's vendor price only after it's been asked for. So every item ForeverDB lists as a
+-- drop or a skin is asked for once in the background, PREFETCH_BATCH every PREFETCH_EVERY seconds
+-- out of combat, those that make up a typical kill first (FM.RARE_CHANCE), and kept for good
+-- (UltimateDB.farmSellPrices): later sessions ask only for what's still missing. The ratings are
+-- redone every PREFETCH_BUMP seconds while it runs and once at the end, not per item.
+------------------------------------------------------------------------------
+FS.PREFETCH_BATCH = 50
+FS.PREFETCH_EVERY = 1
+FS.PREFETCH_BUMP = 30
+FS.PREFETCH_SETTLE = 5 -- seconds after the last batch for the answers to arrive
+
+-- The item IDs in d (ForeverDB's drops and skins) without a known price: common drops and skins,
+-- then rare drops; each once.
+function FS.PriceQueue(d, known)
+  local queue, seen = {}, {}
+  local rare = ns.Farming.RARE_CHANCE * 10000
+  local function add(lists, test)
+    for _, list in pairs(lists or {}) do
+      for i = 1, #list, 2 do
+        local id = list[i]
+        if not seen[id] and known[id] == nil and test(list[i + 1]) then
+          seen[id] = true
+          queue[#queue + 1] = id
+        end
+      end
+    end
+  end
+  add(d.drops, function(chance) return chance >= rare end)
+  add(d.skins, function() return true end)
+  add(d.drops, function() return true end)
+  return queue
+end
+
+local fetching
+function FS.Prefetching() return fetching ~= nil end
+function FS.PrefetchProgress()
+  if not fetching then return nil end
+  return fetching.i - 1, #fetching.queue
+end
+
+function FS.PrefetchPrices()
+  if fetching or not (C_Timer and C_Item and C_Item.RequestLoadItemDataByID) then return end
+  local d = FS.Forever()
+  if not d then return end
+  local g = ns.global
+  local queue = FS.PriceQueue(d, g and g.farmSellPrices or {})
+  if #queue == 0 then return end
+  fetching = { queue = queue, i = 1, bumpAt = GetTime() + FS.PREFETCH_BUMP }
+  local function step()
+    local f = fetching
+    if not f then return end
+    if not ns.Safe.read(InCombatLockdown) then
+      for _ = 1, FS.PREFETCH_BATCH do
+        local id = f.queue[f.i]
+        if not id then break end
+        f.i = f.i + 1
+        -- Asks for it when it isn't known; again if an earlier ask was never answered.
+        local asked = pending[id]
+        if not sellPrice(id) and asked then pcall(C_Item.RequestLoadItemDataByID, id) end
+      end
+      if FS.itemsWaiting and GetTime() >= f.bumpAt and not FS.IsMapOpen() then
+        f.bumpAt = GetTime() + FS.PREFETCH_BUMP
+        FS.Bump()
+      end
+    end
+    if f.i > #f.queue then
+      C_Timer.After(FS.PREFETCH_SETTLE, function()
+        fetching = nil
+        if FS.itemsWaiting and not FS.IsMapOpen() then FS.Bump() end
+      end)
+    else
+      C_Timer.After(FS.PREFETCH_EVERY, step)
+    end
+  end
+  step()
 end
 
 function FS.PendingItems()

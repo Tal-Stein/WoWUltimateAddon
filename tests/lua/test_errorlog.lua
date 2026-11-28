@@ -1,6 +1,11 @@
 local ns = __ns
 
 time = time or os.time
+-- The game's own handlers for blocked actions (Blizzard_Game), which add-ons don't always get an
+-- event for.
+debugstack = debugstack or function() return debug.traceback() end
+HandleAddonActionBlocked = function(addon, func) end
+HandleAddonActionForbidden = function(addon, func) end
 __boot(nil, {})
 
 local EL = ns.ErrorLog
@@ -68,5 +73,26 @@ describe("Error log: errors outside Ultimate's own guards", function()
     assertEq(#entries(), 1)
     assertEq(entries()[1].kind, "lua")
     assertTrue(string.find(entries()[1].detail, "GradeSurfaces", 1, true) ~= nil)
+  end)
+end)
+
+describe("Error log: blocked actions the game handles itself", function()
+  it("records them from the game's own handler, with the stack that caused them", function()
+    EL:Clear()
+    local function offender() HandleAddonActionBlocked("SomeAddon", "CastSpellByName()") end
+    offender()
+    local e = entries()[1]
+    assertEq(#entries(), 1)
+    assertEq(e.kind, "blocked")
+    assertEq(e.addon, "SomeAddon")
+    assertEq(e.func, "CastSpellByName()")
+    assertTrue(type(e.detail) == "string" and e.detail ~= "", "a stack to find the caller by")
+  end)
+  it("counts one blocked action once when the event comes too", function()
+    EL:Clear()
+    HandleAddonActionForbidden("Questie", "TargetUnit()")
+    __fire("ADDON_ACTION_FORBIDDEN", "Questie", "TargetUnit()")
+    assertEq(#entries(), 1)
+    assertEq(entries()[1].count, 1)
   end)
 end)

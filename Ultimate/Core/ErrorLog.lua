@@ -78,14 +78,46 @@ ns:On("ULT_DB_READY", EL, function()
   for _, p in ipairs(pending) do EL:Record(p[1], p[2], p[3], p[4]) end
 end)
 
-local function onAction(kind)
-  return function(_, addon, func)
-    EL:Record(kind, kind .. ":" .. tostring(addon) .. ":" .. tostring(func), nil,
-      { addon = addon, func = func, inCombat = InCombatLockdown() and true or false })
+-- A blocked action may reach us twice (the event, and the game's own handler hooked below):
+-- the second report of the same one within SAME_ACTION seconds is the same action.
+local SAME_ACTION = 0.5
+local lastAction
+local function recordAction(kind, addon, func, stack)
+  local key = kind .. ":" .. tostring(addon) .. ":" .. tostring(func)
+  local t = GetTime and GetTime() or now()
+  if lastAction and lastAction.key == key and t - lastAction.at < SAME_ACTION then
+    if stack and lastAction.entry and not lastAction.entry.detail then lastAction.entry.detail = stack end
+    return
   end
+  EL:Record(kind, key, stack, { addon = addon, func = func, inCombat = InCombatLockdown() and true or false })
+  local entry
+  for _, e in ipairs(store() or {}) do if e.key == key and e.kind == kind then entry = e end end
+  lastAction = { key = key, at = t, entry = entry }
+end
+
+local function onAction(kind)
+  return function(_, addon, func) recordAction(kind, addon, func) end
 end
 ns:On("ADDON_ACTION_BLOCKED", EL, onAction("blocked"))
 ns:On("ADDON_ACTION_FORBIDDEN", EL, onAction("forbidden"))
+
+-- The game also handles blocked actions itself (Blizzard_Game's HandleAddonActionBlocked /
+-- HandleAddonActionForbidden, which show "Interface action failed because of an AddOn"), at
+-- times without the event reaching add-ons. Post-hooking those (hooksecurefunc: no taint)
+-- records them too, with the stack at that moment, which leads to the code that caused it.
+local hooked = {}
+local function hookHandlers()
+  for name, kind in pairs({ HandleAddonActionBlocked = "blocked", HandleAddonActionForbidden = "forbidden" }) do
+    if not hooked[name] and type(_G[name]) == "function" and hooksecurefunc then
+      hooked[name] = true
+      hooksecurefunc(name, function(addon, func)
+        pcall(recordAction, kind, addon, func, debugstack and debugstack(2) or nil)
+      end)
+    end
+  end
+end
+hookHandlers()
+ns:On("PLAYER_LOGIN", EL, hookHandlers)
 
 -- Lua errors the game reports outside Ultimate's own guards (frame scripts, hooks): wrap the
 -- game's error handler like BugGrabber does. Only errors whose message or stack runs through

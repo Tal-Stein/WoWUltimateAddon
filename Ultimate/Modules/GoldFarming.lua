@@ -560,13 +560,16 @@ end
 ------------------------------------------------------------------------------
 -- Mob areas (zone maps, Mobs lens): each mob's spawn points grouped into areas (FM.Clusters), each
 -- drawn once as a soft fill with an outline, the way the game marks quest areas, in the color of
--- the mob's rating (G.MobGrade), the same one the zone's own rating comes from. Hovering an area names the mob; the map still
+-- the mob's rating (G.MobGrade), the same one the zone's own rating comes from.
+-- The areas take no mouse at all, so the map pans and clicks through them as if they weren't
+-- there: the one under the cursor is found from where the cursor is (G.UpdateHover) and named in
+-- a tooltip. Hovering an area names the mob; the map still
 -- takes clicks through it.
 ------------------------------------------------------------------------------
 local function areaEnter(self)
   local e = self.entry
   self.ring:SetAlpha(1)
-  GameTooltip:SetOwner(self, "ANCHOR_CURSOR_RIGHT")
+  GameTooltip:SetOwner(G.pinLayer, "ANCHOR_CURSOR_RIGHT")
   local c = ns.UI.DifficultyColor and ns.UI.DifficultyColor(e.maxLevel) or { r = 1, g = 1, b = 1 }
   local levels = e.minLevel == e.maxLevel and tostring(e.minLevel) or (e.minLevel .. "-" .. e.maxLevel)
   GameTooltip:SetText(string.format("%s (%s)", e.name or "?", levels), c.r, c.g, c.b)
@@ -579,22 +582,21 @@ end
 
 local function areaLeave(self)
   self.ring:SetAlpha(RING_ALPHA)
-  GameTooltip:Hide()
+  local owner = GameTooltip.GetOwner and GameTooltip:GetOwner()
+  if owner == nil or owner == G.pinLayer then GameTooltip:Hide() end
 end
 
 local function areaFrame(i)
   local a = G.areas[i]
   if not a then
-    a = CreateFrame("Button", nil, G.pinLayer)
+    a = CreateFrame("Frame", nil, G.pinLayer)
+    a:EnableMouse(false)
     a.fill = a:CreateTexture(nil, "BORDER")
     a.fill:SetAllPoints(a)
     a.fill:SetTexture(AREA_FILL)
     a.ring = a:CreateTexture(nil, "ARTWORK")
     a.ring:SetAllPoints(a)
     a.ring:SetTexture(AREA_RING)
-    if a.SetMouseClickEnabled then a:SetMouseClickEnabled(false) end -- clicks reach the map
-    a:SetScript("OnEnter", areaEnter)
-    a:SetScript("OnLeave", areaLeave)
     G.areas[i] = a
   end
   return a
@@ -637,6 +639,8 @@ local function mobAreas(mapID)
       n = n + 1
       local a = areaFrame(n)
       a.entry, a.grade = e, grade
+      a.cx, a.cy = area.x, area.y
+      a.rx, a.ry = math.max(5 / math.max(w, 1), area.rx), math.max(5 / math.max(h, 1), area.ry)
       a:SetSize(math.max(10, area.rx * 2 * w), math.max(10, area.ry * 2 * h))
       a.fill:SetVertexColor(c[1], c[2], c[3])
       a.fill:SetAlpha(FILL_ALPHA)
@@ -701,11 +705,32 @@ end
 ------------------------------------------------------------------------------
 -- Refresh
 ------------------------------------------------------------------------------
+-- The topmost area shown under the map point x, y (0-1); areas drawn later are on top. The soft
+-- fill fades toward its edge, so only the inner HIT share of it counts.
+local HIT = 0.85
+local function areaAt(x, y)
+  for i = #G.areas, 1, -1 do
+    local a = G.areas[i]
+    if a:IsShown() and a.cx then
+      local dx, dy = (x - a.cx) / (a.rx * HIT), (y - a.cy) / (a.ry * HIT)
+      if dx * dx + dy * dy <= 1 then return a end
+    end
+  end
+end
+
+local function setHoverArea(a)
+  if a == G.hoverArea then return end
+  if G.hoverArea then areaLeave(G.hoverArea) end
+  G.hoverArea = a
+  if a then areaEnter(a) end
+end
+
 local function clear()
   for _, t in ipairs(G.highlights) do t:Hide() end
   for _, t in ipairs(G.labels) do t:Hide() end
   for _, p in ipairs(G.pins) do p:Hide() end
   for _, a in ipairs(G.areas) do a:Hide() end
+  setHoverArea(nil)
 end
 
 -- OpenMap draws its stitched world over the map canvas, up to OpenMapAPI.ArtTopLevel(); frames
@@ -749,11 +774,22 @@ function G.Refresh()
   G.RenderPanel()
 end
 
--- The zone under the cursor on a continent map, detailed in the panel.
+-- The zone under the cursor on a continent map, detailed in the panel; on a zone map, the mob
+-- area under it, named in a tooltip.
 function G.UpdateHover()
-  if not G.attached or not active() or not G.scores or G.mapType ~= mapTypes().Continent then return end
-  local hover
+  if not G.attached or not active() or not G.scores then return end
   local focus = WorldMapFrame.IsCanvasMouseFocus and WorldMapFrame:IsCanvasMouseFocus()
+  if G.mapType == mapTypes().Zone then
+    local a
+    if focus ~= false then
+      local x, y = WorldMapFrame:GetNormalizedCursorPosition()
+      if x and y then a = areaAt(x, y) end
+    end
+    setHoverArea(a)
+    return
+  end
+  if G.mapType ~= mapTypes().Continent then return end
+  local hover
   if focus ~= false then
     local x, y = WorldMapFrame:GetNormalizedCursorPosition()
     local info = x and y and ns.Safe.read(C_Map.GetMapInfoAtPosition, G.mapID, x, y)

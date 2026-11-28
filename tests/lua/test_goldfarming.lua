@@ -406,11 +406,30 @@ describe("Mobs lens", function()
     local oldSet, oldAdd = GameTooltip.SetText, GameTooltip.AddLine
     GameTooltip.SetText = function(_, t) lines[#lines + 1] = t end
     GameTooltip.AddLine = function(_, t) lines[#lines + 1] = t end
-    b:GetScript("OnEnter")(b)
+    local oldCursor = WorldMapFrame.GetNormalizedCursorPosition
+    WorldMapFrame.GetNormalizedCursorPosition = function() return 0.41, 0.405 end
+    G.UpdateHover()
+    WorldMapFrame.GetNormalizedCursorPosition = oldCursor
     GameTooltip.SetText, GameTooltip.AddLine = oldSet, oldAdd
+    assertEq(G.hoverArea, b, "found by where the cursor is")
     local text = table.concat(lines, "\n")
     assertTrue(text:find("Defias Bandit (10-11)", 1, true) ~= nil, text)
     assertTrue(text:find("40 live here", 1, true) ~= nil, text)
+  end)
+  it("leave the mouse to the map, so it can be dragged over them", function()
+    for _, a in ipairs(G.areas) do assertEq(a.mouseEnabled, false) end
+  end)
+  it("drop the tooltip when the cursor leaves them", function()
+    local hidden = false
+    local oldHide = GameTooltip.Hide
+    GameTooltip.Hide = function() hidden = true end
+    local oldCursor = WorldMapFrame.GetNormalizedCursorPosition
+    WorldMapFrame.GetNormalizedCursorPosition = function() return 0.9, 0.1 end
+    G.UpdateHover()
+    WorldMapFrame.GetNormalizedCursorPosition = oldCursor
+    GameTooltip.Hide = oldHide
+    assertNil(G.hoverArea)
+    assertTrue(hidden)
   end)
   it("are hidden in the gathering lens", function()
     ns.Menu.Set("farming.lens", "gathering")

@@ -164,12 +164,14 @@ local function profLine()
   return table.concat(parts, "  ·  ")
 end
 
--- "50c per kill · 1g/hr (12 kills)"
+-- "50c per kill · 1g/hr  +20c rare drops (Forever data; yours: 40c over 3 kills)"
 local function mobValueText(v)
   local text = string.format(L.FARM_PER_KILL, money(v.perKill))
   local hour = FM.PerHour(v.perKill, ns.KillLog.Pace())
   if hour then text = text .. "  ·  " .. string.format(L.FARM_PER_HOUR, money(hour)) end
+  if (v.rare or 0) >= 1 then text = text .. "  |cff808080" .. string.format(L.FARM_RARE, money(v.rare)) .. "|r" end
   local whose = v.source == "forever" and L.FARM_FROM_FOREVER or string.format(L.FARM_KILLS, v.kills or 0)
+  if v.own then whose = whose .. "; " .. string.format(L.FARM_YOURS, money(v.own.perKill), v.own.kills) end
   return text .. "  |cff808080(" .. whose .. ")|r"
 end
 G.MobValueText = mobValueText

@@ -43,22 +43,34 @@ end
 
 -- A mob's value from ForeverDB (d: { coin = average copper, drops = { itemID, chance, ... },
 -- skins = { itemID, chance, ... }, kills = kills behind the coin }; chances per 10000), or nil.
+-- perKill is what a kill typically gives: coin, skins and drops at least RARE_CHANCE likely.
+-- Rarer drops (world greens and blues at a percent or two each, priced at auction) are averaged
+-- apart in .rare: over many kills they add that much, but a few kills almost never show it.
+FM.RARE_CHANCE = 0.05
 function FM.DataMobValue(d, price, skills)
   if not d then return nil end
   local function sum(list)
-    local total = 0
+    local common, rare = 0, 0
     for i = 1, #(list or {}), 2 do
       local p = price(list[i])
-      if p then total = total + p * list[i + 1] / 10000 end
+      local chance = list[i + 1] / 10000
+      if p then
+        if chance >= FM.RARE_CHANCE then common = common + p * chance else rare = rare + p * chance end
+      end
     end
-    return total
+    return common, rare
   end
   local coin = ((d.kills or 0) >= FM.MIN_DATA_KILLS) and d.coin or 0
-  local loot = sum(d.drops)
-  local skin = (skills and skills.skinning) and sum(d.skins) or 0
+  local loot, rare = sum(d.drops)
+  local skin = 0
+  if skills and skills.skinning then
+    local s, sr = sum(d.skins)
+    skin = s + sr
+  end
   local perKill = coin + loot + skin
-  if perKill <= 0 then return nil end
-  return { perKill = perKill, coin = coin, loot = loot, skin = skin, dataKills = d.kills, source = "forever" }
+  if perKill + rare <= 0 then return nil end
+  return { perKill = perKill, coin = coin, loot = loot, skin = skin, rare = rare, dataKills = d.kills,
+    source = "forever" }
 end
 
 -- Which value to believe: your own kills once there are many, else ForeverDB's, else your own

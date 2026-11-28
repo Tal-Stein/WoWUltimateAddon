@@ -493,6 +493,8 @@ function FS.MobValue(npcID, skills)
   local own = stat and ns.Farming.MobValue(stat, FS.Price, skills)
   local data = ns.Farming.DataMobValue(foreverEntry(npcID), FS.Price, skills)
   local v = ns.Farming.PickValue(own, data)
+  -- Your own few kills shown beside the crowd's figure, to compare.
+  if v and v == data and own and own.kills > 0 then v.own = own end
   valueCache[npcID] = v or false
   return v
 end

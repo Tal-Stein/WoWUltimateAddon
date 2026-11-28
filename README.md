@@ -6,6 +6,14 @@ Blizzard's own Settings panel (Options → AddOns → Ultimate).
 
 Requires **Questie**, including its **QuestieDB**.
 
+## Installing and updating
+
+Download [Update-Ultimate.bat](Update-Ultimate.bat), set `ADDONS` at its top to your WoW Forever
+`Interface\AddOns` folder if yours isn't the default, and run it. It puts the latest version in
+place (asking for administrator rights when the folder is under Program Files); run it again to
+update. Your settings and kill records live in WoW's `WTF` folder and are kept. It leaves a linked
+(developer) `Ultimate` folder alone.
+
 ## Features
 
 | Feature | What it does |

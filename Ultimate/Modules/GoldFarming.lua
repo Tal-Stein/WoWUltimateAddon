@@ -914,6 +914,8 @@ function G.Report()
   for _ in pairs(fd and fd.gold or {}) do nGold = nGold + 1 end
   for _ in pairs(fd and fd.drops or {}) do nDrops = nDrops + 1 end
   ns:Print(string.format(L.FARM_REPORT_FOREVER, st.foreverDB or L.FARM_NONE, nGold, nDrops))
+  local done, total = FS.PrefetchProgress()
+  if done then ns:Print(string.format(L.FARM_REPORT_FETCHING, done, total)) end
   local skills = FS.Skills()
   local parts = {}
   for _, prof in ipairs({ "herbalism", "mining", "skinning", "fishing" }) do
